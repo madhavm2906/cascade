@@ -3,148 +3,480 @@ import {
   ArrowLeft,
   CloudLightning,
   Radio,
+  RotateCcw,
   ShieldCheck,
   Users,
+  Zap,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+
+import {
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  getInfrastructureNodes,
+  type Scenario,
+} from "../data/infrastructure";
+
 import CityMap from "../components/command/CityMap";
+
+import { useNavigate } from "react-router-dom";
+
 import "../styles/command.css";
 
 export default function CommandCenter() {
   const navigate = useNavigate();
 
+  const [
+    scenario,
+    setScenario,
+  ] =
+    useState<Scenario>("normal");
+
+  const [
+    selectedNodeId,
+    setSelectedNodeId,
+  ] =
+    useState<string | null>(null);
+
+  const nodes = useMemo(
+    () =>
+      getInfrastructureNodes(
+        scenario
+      ),
+    [scenario]
+  );
+
+  const selectedNode =
+    selectedNodeId
+      ? nodes.find(
+          (node) =>
+            node.id ===
+            selectedNodeId
+        ) ?? null
+      : null;
+
+  const affectedNodes =
+    nodes.filter(
+      (node) =>
+        node.status !== "healthy"
+    );
+
+  const serviceExposure =
+    affectedNodes.reduce(
+      (total, node) =>
+        total +
+        node.populationServed,
+      0
+    );
+
+  function startStorm() {
+    setScenario("storm");
+
+    setSelectedNodeId(
+      "substation-n4"
+    );
+  }
+
+  function resetScenario() {
+    setScenario("normal");
+
+    setSelectedNodeId(null);
+  }
+
   return (
-    <div className="command-center">
-      <header className="command-header">
-        <div className="command-brand">
-          <button onClick={() => navigate("/")}>
+    <div
+      className={`command-center ${
+        scenario === "storm"
+          ? "storm-active"
+          : ""
+      }`}
+    >
+      {/* MAP IS THE EXPERIENCE */}
+
+      <div className="command-map-stage">
+        <CityMap
+          nodes={nodes}
+          selectedNodeId={
+            selectedNodeId
+          }
+          onNodeSelect={(node) =>
+            setSelectedNodeId(
+              node?.id ?? null
+            )
+          }
+        />
+      </div>
+
+      {/* TOP HUD */}
+
+      <header className="command-hud">
+        <div className="hud-brand">
+          <button
+            className="hud-back"
+            onClick={() =>
+              navigate("/")
+            }
+          >
             <ArrowLeft size={17} />
           </button>
 
           <div>
             <strong>CASCADE</strong>
-            <span>COMMAND INTELLIGENCE</span>
+
+            <span>
+              COMMAND INTELLIGENCE
+            </span>
           </div>
         </div>
 
-        <div className="command-status">
-          <div className="live-indicator">
-            <span />
-            LIVE SYSTEM
-          </div>
+        <div className="hud-center">
+          <span
+            className={`scenario-dot ${
+              scenario
+            }`}
+          />
 
-          <div className="scenario-indicator">
-            <CloudLightning size={15} />
-            MONITORING
-          </div>
+          {scenario === "normal"
+            ? "MONITORING"
+            : "SIMULATION ACTIVE"}
+        </div>
+
+        <div className="hud-right">
+          <Activity size={14} />
+
+          LIVE MODEL
         </div>
       </header>
 
-      <main className="command-layout">
-        <aside className="intelligence-panel">
-          <div className="panel-heading">
-            <span>LIVE TRUTH</span>
-            <h2>Situational Intelligence</h2>
+      {/* INCIDENT BANNER */}
+
+      {scenario === "storm" && (
+        <div className="incident-banner">
+          <CloudLightning
+            size={16}
+          />
+
+          <div>
+            <span>
+              SIMULATED INCIDENT
+            </span>
+
+            <strong>
+              Severe storm impacting
+              north grid sector
+            </strong>
           </div>
+        </div>
+      )}
 
-          <div className="intel-item">
-            <ShieldCheck size={17} />
+      {/* LIVE TRUTH FLOATING INTELLIGENCE */}
 
-            <div>
-              <strong>Systems verified</strong>
-              <p>6 infrastructure sources reporting normally.</p>
-            </div>
-          </div>
+      <aside className="truth-dock">
+        <div className="dock-heading">
+          <span>LIVE TRUTH</span>
 
-          <div className="intel-item">
-            <Radio size={17} />
+          <strong>
+            Situational Intelligence
+          </strong>
+        </div>
 
-            <div>
-              <strong>Communications stable</strong>
-              <p>No conflicting reports detected.</p>
-            </div>
-          </div>
-
-          <div className="intel-item">
-            <Users size={17} />
-
-            <div>
-              <strong>42,800 protected</strong>
-              <p>Population inside monitored service zones.</p>
-            </div>
-          </div>
-
-          <div className="intel-footer">
-            <span>LAST UPDATE</span>
-            <strong>LIVE</strong>
-          </div>
-        </aside>
-
-        <section className="map-workspace">
-          <div className="map-topbar">
-            <div>
-              <span>DIGITAL TWIN</span>
-              <h1>Critical Infrastructure Network</h1>
-            </div>
-
-            <div className="map-live">
-              <Activity size={14} />
-              REAL TIME
-            </div>
-          </div>
-
-          <div className="map-container">
-            <CityMap />
-
-            <div className="map-legend">
-              <div>
-                <span className="legend-dot healthy-dot" />
-                Healthy
-              </div>
+        {scenario === "normal" ? (
+          <>
+            <div className="truth-event">
+              <ShieldCheck
+                size={15}
+              />
 
               <div>
-                <span className="legend-dot watch-dot" />
-                Watch
-              </div>
+                <strong>
+                  Sources verified
+                </strong>
 
-              <div>
-                <span className="legend-dot warning-dot" />
-                At Risk
-              </div>
-
-              <div>
-                <span className="legend-dot critical-dot" />
-                Critical
+                <span>
+                  6 infrastructure
+                  systems reporting
+                  normally
+                </span>
               </div>
             </div>
-          </div>
-        </section>
 
-        <aside className="forecast-panel">
-          <div className="panel-heading">
-            <span>CASCADE FORECAST</span>
-            <h2>Predicted Risk</h2>
-          </div>
+            <div className="truth-event">
+              <Radio size={15} />
 
-          <div className="forecast-empty">
-            <div className="forecast-ring">
-              <ShieldCheck size={23} />
+              <div>
+                <strong>
+                  No conflicting
+                  reports
+                </strong>
+
+                <span>
+                  Evidence streams
+                  agree
+                </span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="truth-event danger">
+              <Zap size={15} />
+
+              <div>
+                <strong>
+                  Substation N4
+                  offline
+                </strong>
+
+                <span>
+                  Grid telemetry
+                  confirms failure
+                </span>
+              </div>
             </div>
 
-            <strong>No active cascade</strong>
+            <div className="truth-event warning">
+              <Radio size={15} />
 
-            <p>
-              Infrastructure dependencies are being monitored for downstream
-              failure risk.
+              <div>
+                <strong>
+                  Tower C7 degraded
+                </strong>
+
+                <span>
+                  Battery fallback
+                  detected
+                </span>
+              </div>
+            </div>
+
+            <div className="truth-event">
+              <ShieldCheck
+                size={15}
+              />
+
+              <div>
+                <strong>
+                  Incident evidence
+                  consistent
+                </strong>
+
+                <span>
+                  Confidence 94%
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </aside>
+
+      {/* RIGHT INTELLIGENCE */}
+
+      <aside className="asset-dock">
+        {selectedNode ? (
+          <>
+            <div className="dock-heading">
+              <span>
+                {
+                  selectedNode.type
+                }
+              </span>
+
+              <strong>
+                {selectedNode.name}
+              </strong>
+            </div>
+
+            <div className="asset-status-row">
+              <span>
+                CURRENT STATUS
+              </span>
+
+              <strong
+                className={`status-text ${selectedNode.status}`}
+              >
+                {selectedNode.status}
+              </strong>
+            </div>
+
+            <p className="asset-description">
+              {
+                selectedNode.description
+              }
             </p>
-          </div>
 
-          <button className="simulate-button">
-            <CloudLightning size={17} />
-            Simulate Major Storm
+            <div className="asset-stat">
+              <span>
+                SERVICE EXPOSURE
+              </span>
+
+              <strong>
+                {selectedNode.populationServed.toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="asset-stat">
+              <span>
+                DEPENDENCIES
+              </span>
+
+              <strong>
+                {
+                  selectedNode
+                    .dependsOn.length
+                }
+              </strong>
+            </div>
+
+            {selectedNode.predictedFailureMinutes !==
+              undefined && (
+              <div className="failure-clock">
+                <span>
+                  PREDICTED FAILURE
+                </span>
+
+                <strong>
+                  {selectedNode.predictedFailureMinutes ===
+                  0
+                    ? "NOW"
+                    : `${selectedNode.predictedFailureMinutes} MIN`}
+                </strong>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="dock-heading">
+              <span>
+                CASCADE FORECAST
+              </span>
+
+              <strong>
+                Network Risk
+              </strong>
+            </div>
+
+            {scenario ===
+            "normal" ? (
+              <div className="forecast-clear">
+                <ShieldCheck
+                  size={25}
+                />
+
+                <strong>
+                  No active cascade
+                </strong>
+
+                <span>
+                  Select any
+                  infrastructure node
+                  to inspect it.
+                </span>
+              </div>
+            ) : (
+              <div className="risk-summary">
+                <span>
+                  SYSTEMS AT RISK
+                </span>
+
+                <strong>
+                  {
+                    affectedNodes.length
+                  }
+                </strong>
+
+                <small>
+                  Service exposure:
+                  {" "}
+                  {serviceExposure.toLocaleString()}
+                </small>
+              </div>
+            )}
+          </>
+        )}
+      </aside>
+
+      {/* NODE SELECTOR */}
+
+      <div className="node-dock">
+        <div className="node-dock-title">
+          INFRASTRUCTURE
+        </div>
+
+        {nodes.map((node) => (
+          <button
+            key={node.id}
+            className={
+              selectedNodeId ===
+              node.id
+                ? "selected"
+                : ""
+            }
+            onClick={() =>
+              setSelectedNodeId(
+                node.id
+              )
+            }
+          >
+            <span
+              className={`node-status ${node.status}`}
+            />
+
+            <span>
+              {node.shortName}
+            </span>
           </button>
-        </aside>
-      </main>
+        ))}
+      </div>
+
+      {/* SCENARIO CONTROL */}
+
+      <div className="scenario-control">
+        {scenario === "normal" ? (
+          <button
+            className="storm-trigger"
+            onClick={startStorm}
+          >
+            <CloudLightning
+              size={17}
+            />
+
+            SIMULATE MAJOR STORM
+          </button>
+        ) : (
+          <button
+            className="reset-trigger"
+            onClick={
+              resetScenario
+            }
+          >
+            <RotateCcw
+              size={16}
+            />
+
+            RESET SIMULATION
+          </button>
+        )}
+      </div>
+
+      {/* IMPACT COUNTER */}
+
+      {scenario === "storm" && (
+        <div className="impact-counter">
+          <Users size={14} />
+
+          <div>
+            <span>
+              SERVICE EXPOSURE
+            </span>
+
+            <strong>
+              {serviceExposure.toLocaleString()}
+            </strong>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
