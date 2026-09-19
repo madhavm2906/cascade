@@ -1078,4 +1078,1004 @@
   .command-center button {
     transition: none;
   }
+
+  /* =========================================================
+   LIVETRUTH
+   ========================================================= */
+
+.livetruth-launch {
+  width: 100%;
+  min-height: 44px;
+
+  margin-top: 17px;
+  padding: 0 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  background:
+    rgba(86, 137, 126, 0.11);
+
+  border:
+    1px solid
+    rgba(115, 172, 158, 0.27);
+
+  color: #b9d7d0;
+
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.livetruth-launch:hover {
+  background:
+    rgba(94, 157, 142, 0.18);
+
+  border-color:
+    rgba(131, 193, 177, 0.48);
+
+  transform:
+    translateY(-1px);
+}
+
+/* MAIN FLOATING PANEL */
+
+.livetruth-workbench {
+  position: absolute;
+  z-index: 70;
+
+  top: 94px;
+  left: 20px;
+
+  width: 355px;
+  max-height:
+    calc(100vh - 125px);
+
+  overflow-y: auto;
+
+  padding: 20px;
+
+  background:
+    rgba(8, 13, 17, 0.97);
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.14);
+
+  color: #edf3f3;
+
+  backdrop-filter:
+    blur(24px);
+
+  box-shadow:
+    0 24px 70px
+    rgba(0, 0, 0, 0.4);
+
+  animation:
+    livetruth-enter
+    0.24s ease-out;
+}
+
+@keyframes livetruth-enter {
+  from {
+    opacity: 0;
+
+    transform:
+      translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateX(0);
+  }
+}
+
+/* HEADER */
+
+.livetruth-header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  gap: 12px;
+
+  padding-bottom: 16px;
+
+  border-bottom:
+    1px solid
+    rgba(255, 255, 255, 0.1);
+}
+
+.livetruth-title {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.livetruth-icon {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+
+  place-items: center;
+
+  border:
+    1px solid
+    rgba(117, 180, 163, 0.28);
+
+  background:
+    rgba(79, 139, 124, 0.12);
+
+  color: #8fc5b6;
+}
+
+.livetruth-title > div:last-child {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.livetruth-title span {
+  color: #86ada5;
+
+  font-size: 9px;
+
+  letter-spacing: 0.16em;
+}
+
+.livetruth-title strong {
+  color: #eff4f4;
+
+  font-size: 16px;
+
+  font-weight: 550;
+}
+
+.livetruth-close {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+
+  place-items: center;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.1);
+
+  background:
+    transparent;
+
+  color: #9eacb0;
+
+  cursor: pointer;
+}
+
+.livetruth-close:hover {
+  background:
+    rgba(255, 255, 255, 0.07);
+
+  color: white;
+}
+
+/* INPUT */
+
+.livetruth-intro {
+  margin:
+    17px 0 18px;
+
+  color: #aab7ba;
+
+  font-size: 11px;
+
+  line-height: 1.65;
+}
+
+.livetruth-label {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #8e9da2;
+
+  font-size: 9px;
+
+  letter-spacing: 0.13em;
+}
+
+.livetruth-workbench textarea {
+  width: 100%;
+  min-height: 132px;
+
+  resize: vertical;
+
+  padding: 13px;
+
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.12);
+
+  outline: none;
+
+  color: #e7eeee;
+
+  font: inherit;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+}
+
+.livetruth-workbench textarea::placeholder {
+  color: #68777b;
+}
+
+.livetruth-workbench textarea:focus {
+  border-color:
+    rgba(132, 190, 175, 0.55);
+}
+
+.livetruth-helper-row {
+  margin-top: 8px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  gap: 12px;
+}
+
+.livetruth-helper-row > span {
+  color: #728086;
+
+  font-size: 9px;
+}
+
+.livetruth-sample {
+  padding: 0;
+
+  border: none;
+
+  background: transparent;
+
+  color: #92b8af;
+
+  font-size: 9px;
+
+  letter-spacing: 0.08em;
+
+  cursor: pointer;
+}
+
+.livetruth-sample:hover {
+  color: #c9e4de;
+}
+
+/* ANALYZE */
+
+.livetruth-analyze {
+  width: 100%;
+  min-height: 45px;
+
+  margin-top: 18px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 9px;
+
+  border:
+    1px solid
+    rgba(127, 190, 173, 0.5);
+
+  background:
+    rgba(87, 153, 136, 0.16);
+
+  color: #d7eee8;
+
+  font-size: 10px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.09em;
+
+  cursor: pointer;
+}
+
+.livetruth-analyze:hover:not(:disabled) {
+  background:
+    rgba(97, 170, 151, 0.25);
+}
+
+.livetruth-analyze:disabled {
+  opacity: 0.55;
+
+  cursor: wait;
+}
+
+.livetruth-spinner {
+  animation:
+    livetruth-spin
+    0.8s linear infinite;
+}
+
+@keyframes livetruth-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+.livetruth-safety-note {
+  margin:
+    13px 0 0;
+
+  color: #78878b;
+
+  font-size: 10px;
+
+  line-height: 1.55;
+}
+
+/* API ERROR */
+
+.livetruth-api-error {
+  margin-top: 15px;
+
+  padding: 12px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  background:
+    rgba(125, 48, 43, 0.14);
+
+  border:
+    1px solid
+    rgba(214, 98, 88, 0.28);
+}
+
+.livetruth-api-error strong {
+  color: #e79c94;
+
+  font-size: 9px;
+
+  letter-spacing: 0.1em;
+}
+
+.livetruth-api-error span {
+  color: #b99a97;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+/* REVIEW */
+
+.livetruth-review {
+  padding-top: 17px;
+}
+
+.livetruth-verification {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding:
+    10px 11px;
+
+  background:
+    rgba(159, 119, 48, 0.12);
+
+  border:
+    1px solid
+    rgba(208, 169, 91, 0.24);
+
+  color: #ddc483;
+
+  font-size: 9px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.1em;
+}
+
+.livetruth-unverified-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #d7b76a;
+
+  box-shadow:
+    0 0 10px
+    rgba(215, 183, 106, 0.5);
+}
+
+.livetruth-review-block {
+  padding:
+    15px 0;
+
+  border-bottom:
+    1px solid
+    rgba(255, 255, 255, 0.075);
+}
+
+.livetruth-review-block > span,
+.livetruth-review-grid span {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #87969b;
+
+  font-size: 9px;
+
+  letter-spacing: 0.11em;
+}
+
+.livetruth-review-block strong {
+  display: block;
+
+  color: #e8eeee;
+
+  font-size: 12px;
+
+  font-weight: 500;
+
+  line-height: 1.55;
+}
+
+.livetruth-review-block p {
+  margin: 0;
+
+  color: #b3bfc2;
+
+  font-size: 11px;
+
+  line-height: 1.6;
+}
+
+.livetruth-review-block.uncertainty p {
+  color: #c9b98d;
+}
+
+.livetruth-review-grid {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 10px;
+
+  padding:
+    14px 0;
+
+  border-bottom:
+    1px solid
+    rgba(255, 255, 255, 0.075);
+}
+
+.livetruth-review-grid > div {
+  min-width: 0;
+}
+
+.livetruth-review-grid strong {
+  color: #dfe7e8;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+  line-height: 1.4;
+
+  text-transform: capitalize;
+
+  overflow-wrap: anywhere;
+}
+
+/* HUMAN REVIEW */
+
+.livetruth-not-applied {
+  margin-top: 16px;
+
+  padding: 12px;
+
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 10px;
+
+  background:
+    rgba(88, 137, 126, 0.09);
+
+  border:
+    1px solid
+    rgba(118, 171, 158, 0.2);
+
+  color: #8bb6aa;
+}
+
+.livetruth-not-applied svg {
+  flex-shrink: 0;
+
+  margin-top: 2px;
+}
+
+.livetruth-not-applied > div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.livetruth-not-applied strong {
+  color: #d6e6e2;
+
+  font-size: 11px;
+
+  font-weight: 500;
+}
+
+.livetruth-not-applied span {
+  color: #8c9c9f;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+.livetruth-review-another {
+  width: 100%;
+  min-height: 43px;
+
+  margin-top: 15px;
+
+  background:
+    rgba(255, 255, 255, 0.04);
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.12);
+
+  color: #b8c5c7;
+
+  font-size: 9px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.09em;
+
+  cursor: pointer;
+}
+
+.livetruth-review-another:hover {
+  background:
+    rgba(255, 255, 255, 0.08);
+
+  color: white;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 800px) {
+  .livetruth-workbench {
+    left: 15px;
+
+    width: 330px;
+  }
+}
+
+@media (max-width: 600px) {
+  .livetruth-workbench {
+    top: 76px;
+
+    left: 12px;
+    right: 12px;
+
+    width: auto;
+
+    max-height:
+      calc(100vh - 165px);
+  }
+}
+
+/* =========================================================
+   LIVETRUTH QUICK FIX
+   ========================================================= */
+
+.livetruth-workbench {
+  position: fixed !important;
+  z-index: 9999 !important;
+
+  top: 88px !important;
+  left: 24px !important;
+
+  width: 380px !important;
+  max-height: calc(100vh - 120px) !important;
+
+  overflow-y: auto !important;
+
+  padding: 22px !important;
+
+  background: rgba(7, 12, 16, 0.98) !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+
+  color: #eef4f4 !important;
+
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55) !important;
+
+  backdrop-filter: blur(24px) !important;
+}
+
+.livetruth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.livetruth-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.livetruth-title > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.livetruth-title span {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #8db6ac;
+}
+
+.livetruth-title strong {
+  font-size: 17px;
+  font-weight: 550;
+  color: #f2f6f6;
+}
+
+.livetruth-icon {
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(123, 190, 173, 0.3);
+
+  background: rgba(82, 145, 128, 0.12);
+
+  color: #91c4b7;
+}
+
+.livetruth-close {
+  width: 35px;
+  height: 35px;
+
+  display: grid;
+  place-items: center;
+
+  background: transparent;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  color: #a8b4b7;
+
+  cursor: pointer;
+}
+
+.livetruth-intro {
+  margin: 0 0 18px;
+
+  color: #adb9bc;
+
+  font-size: 12px;
+
+  line-height: 1.65;
+}
+
+.livetruth-label {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #94a3a8;
+
+  font-size: 9px;
+
+  letter-spacing: 0.12em;
+}
+
+.livetruth-workbench textarea {
+  box-sizing: border-box;
+
+  width: 100%;
+  min-height: 140px;
+
+  padding: 14px;
+
+  background: rgba(255, 255, 255, 0.04);
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+
+  color: #edf3f3;
+
+  outline: none;
+
+  resize: vertical;
+
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.livetruth-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 8px;
+
+  color: #78878c;
+
+  font-size: 9px;
+}
+
+.livetruth-sample {
+  border: none;
+
+  background: transparent;
+
+  color: #9bc4b8;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.livetruth-analyze {
+  width: 100%;
+  min-height: 46px;
+
+  margin-top: 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 9px;
+
+  border: 1px solid rgba(126, 193, 175, 0.5);
+
+  background: rgba(87, 153, 136, 0.18);
+
+  color: #dcefeb;
+
+  cursor: pointer;
+
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+}
+
+.livetruth-safety-note {
+  margin-top: 13px;
+
+  color: #7f8e92;
+
+  font-size: 10px;
+
+  line-height: 1.55;
+}
+
+.livetruth-verification {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 11px 12px;
+
+  margin-bottom: 8px;
+
+  background: rgba(159, 119, 48, 0.13);
+
+  border: 1px solid rgba(208, 169, 91, 0.28);
+
+  color: #e1c57f;
+
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.livetruth-unverified-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #d9b868;
+}
+
+.livetruth-review-block {
+  padding: 15px 0;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.livetruth-review-block > span,
+.livetruth-review-grid span {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #8d9ca1;
+
+  font-size: 9px;
+
+  letter-spacing: 0.11em;
+}
+
+.livetruth-review-block strong {
+  color: #e8eeee;
+
+  font-size: 12px;
+
+  line-height: 1.55;
+}
+
+.livetruth-review-block p {
+  margin: 0;
+
+  color: #b4c0c3;
+
+  font-size: 11px;
+
+  line-height: 1.6;
+}
+
+.livetruth-review-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 12px;
+
+  padding: 15px 0;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.livetruth-review-grid strong {
+  color: #e3eaea;
+
+  font-size: 11px;
+
+  text-transform: capitalize;
+}
+
+.livetruth-not-applied {
+  margin-top: 16px;
+
+  padding: 12px;
+
+  display: flex;
+  gap: 10px;
+
+  background: rgba(88, 137, 126, 0.1);
+
+  border: 1px solid rgba(118, 171, 158, 0.22);
+
+  color: #90b9ae;
+}
+
+.livetruth-not-applied > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.livetruth-not-applied strong {
+  font-size: 11px;
+
+  color: #dbe9e6;
+}
+
+.livetruth-not-applied span {
+  font-size: 10px;
+
+  color: #91a1a4;
+}
+
+.livetruth-review-another {
+  width: 100%;
+  min-height: 44px;
+
+  margin-top: 16px;
+
+  background: rgba(255, 255, 255, 0.05);
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+
+  color: #c1cdcf;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+}
+
+.livetruth-api-error {
+  margin-top: 14px;
+
+  padding: 12px;
+
+  background: rgba(150, 55, 48, 0.15);
+
+  border: 1px solid rgba(215, 95, 85, 0.3);
+
+  color: #eaa19a;
+}
+
+.livetruth-spinner {
+  animation: livetruth-spin 0.8s linear infinite;
+}
+
+@keyframes livetruth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 }

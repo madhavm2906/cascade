@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
 import {
   Activity,
   ArrowLeft,
   CloudLightning,
+  FileText,
+  LoaderCircle,
   Radio,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -67,6 +71,44 @@ type SimulationResult = {
   disclaimer: string;
 };
 
+type ExtractedReport = {
+  summary: string;
+
+  asset_id:
+    | "substation-n4"
+    | "hospital-north"
+    | "tower-c7"
+    | "pump-w2"
+    | "traffic-t4"
+    | "fire-f2"
+    | "unknown";
+
+  incident_type:
+    | "power_failure"
+    | "communications_failure"
+    | "flooding"
+    | "road_blockage"
+    | "water_disruption"
+    | "medical_disruption"
+    | "other";
+
+  evidence_description: string;
+
+  uncertainty: string;
+};
+
+type InterpretedReport = {
+  original_text: string;
+
+  extraction: ExtractedReport;
+
+  verification_status: "unverified";
+
+  applied_to_simulation: false;
+
+  note: string;
+};
+
 const BASE_NODES = getInfrastructureNodes("normal");
 
 const INTERVENTIONS: {
@@ -86,6 +128,9 @@ const INTERVENTIONS: {
     label: "Support communications",
   },
 ];
+
+const SAMPLE_REPORT =
+  "I am a responder near Water Pump W2. I can see water rising around the pump station, but I cannot confirm whether the pump is damaged or still operating.";
 
 export default function CommandCenter() {
   const navigate = useNavigate();
@@ -112,12 +157,26 @@ export default function CommandCenter() {
     useState<string | null>(null);
 
   /*
-    Request an updated simulation from Python.
+    LiveTruth state
+  */
 
-    This runs when:
-    - the storm begins
-    - an intervention changes
-    - the simulation minute changes
+  const [liveTruthOpen, setLiveTruthOpen] =
+    useState(false);
+
+  const [reportText, setReportText] =
+    useState("");
+
+  const [reportLoading, setReportLoading] =
+    useState(false);
+
+  const [reportError, setReportError] =
+    useState<string | null>(null);
+
+  const [interpretedReport, setInterpretedReport] =
+    useState<InterpretedReport | null>(null);
+
+  /*
+    Request simulation from Python.
   */
 
   useEffect(() => {
@@ -173,7 +232,7 @@ export default function CommandCenter() {
         );
 
         setError(
-          "Could not reach the Python simulation engine. Check that the backend is running."
+          "Could not reach the Python simulation engine."
         );
       } finally {
         if (!controller.signal.aborted) {
@@ -190,12 +249,14 @@ export default function CommandCenter() {
   }, [scenario, intervention, atMinute]);
 
   /*
-    Combine the calculated Python results with
-    our existing map coordinates and node details.
+    Merge Python results with infrastructure nodes.
   */
 
   const nodes = useMemo(() => {
-    if (scenario === "normal" || !simulation) {
+    if (
+      scenario === "normal" ||
+      !simulation
+    ) {
       return BASE_NODES;
     }
 
@@ -220,56 +281,148 @@ export default function CommandCenter() {
         status: calculated.status,
 
         predictedFailureMinutes:
-          calculated.failure_minute ?? undefined,
+          calculated.failure_minute ??
+          undefined,
       };
     });
   }, [scenario, simulation]);
 
   const selectedNode =
     nodes.find(
-      (node) => node.id === selectedNodeId
+      (node) =>
+        node.id === selectedNodeId
     ) ?? null;
 
   const selectedResult =
     simulation?.nodes.find(
-      (node) => node.id === selectedNodeId
+      (node) =>
+        node.id === selectedNodeId
     ) ?? null;
 
   /*
-    Begin a new storm simulation.
+    LiveTruth Gemini interpretation.
+  */
+
+  async function analyzeReport() {
+    const cleanedReport =
+      reportText.trim();
+
+    if (cleanedReport.length < 10) {
+      setReportError(
+        "Enter a little more detail before analyzing the report."
+      );
+
+      return;
+    }
+
+    setReportLoading(true);
+    setReportError(null);
+    setInterpretedReport(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/reports/interpret",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            text: cleanedReport,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const payload =
+          await response
+            .json()
+            .catch(() => null);
+
+        const message =
+          payload?.detail ??
+          `LiveTruth request failed: ${response.status}`;
+
+        throw new Error(message);
+      }
+
+      const result =
+        (await response.json()) as InterpretedReport;
+
+      setInterpretedReport(result);
+
+      /*
+        Select the matched infrastructure
+        asset on the map.
+
+        This does NOT change simulation state.
+      */
+
+      if (
+        result.extraction.asset_id !==
+        "unknown"
+      ) {
+        setSelectedNodeId(
+          result.extraction.asset_id
+        );
+      }
+    } catch (requestError) {
+      console.error(
+        "CASCADE LiveTruth error:",
+        requestError
+      );
+
+      setReportError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The report could not be interpreted."
+      );
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+  function clearReport() {
+    setReportText("");
+    setReportError(null);
+    setInterpretedReport(null);
+  }
+
+  function closeLiveTruth() {
+    setLiveTruthOpen(false);
+    setReportError(null);
+  }
+
+  /*
+    Simulation controls.
   */
 
   function startStorm() {
     setIntervention("none");
-
     setAtMinute(0);
 
-    setSelectedNodeId("substation-n4");
+    setSelectedNodeId(
+      "substation-n4"
+    );
 
     setSimulation(null);
-
     setError(null);
 
     setScenario("storm");
   }
 
-  /*
-    Return to the normal monitoring view.
-  */
-
   function resetSimulation() {
     setScenario("normal");
-
     setIntervention("none");
-
     setAtMinute(0);
 
     setSelectedNodeId(null);
-
     setSimulation(null);
 
     setError(null);
-
     setLoading(false);
   }
 
@@ -281,13 +434,19 @@ export default function CommandCenter() {
           : ""
       }`}
     >
-      {/* INTERACTIVE MAP */}
+      {/* =====================================================
+          MAP
+      ===================================================== */}
 
       <div className="command-map-stage">
         <CityMap
           nodes={nodes}
-          selectedNodeId={selectedNodeId}
-          futureForkOpen={scenario === "storm"}
+          selectedNodeId={
+            selectedNodeId
+          }
+          futureForkOpen={
+            scenario === "storm"
+          }
           onNodeSelect={(node) => {
             setSelectedNodeId(
               node?.id ?? null
@@ -296,20 +455,26 @@ export default function CommandCenter() {
         />
       </div>
 
-      {/* TOP NAVIGATION */}
+      {/* =====================================================
+          TOP HUD
+      ===================================================== */}
 
       <header className="command-hud">
         <div className="hud-brand">
           <button
             className="hud-back"
             aria-label="Return to landing page"
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
           >
             <ArrowLeft size={17} />
           </button>
 
           <div>
-            <strong>CASCADE</strong>
+            <strong>
+              CASCADE
+            </strong>
 
             <span>
               COMMAND INTELLIGENCE
@@ -334,29 +499,39 @@ export default function CommandCenter() {
         </div>
       </header>
 
-      {/* INCIDENT BANNER */}
+      {/* =====================================================
+          INCIDENT BANNER
+      ===================================================== */}
 
       {scenario === "storm" && (
         <div className="incident-banner">
-          <CloudLightning size={16} />
+          <CloudLightning
+            size={16}
+          />
 
           <div>
             <span>
-              FICTIONAL DISASTER SCENARIO
+              FICTIONAL DISASTER
+              SCENARIO
             </span>
 
             <strong>
-              Storm disables North Grid Substation N4
+              Storm disables North
+              Grid Substation N4
             </strong>
           </div>
         </div>
       )}
 
-      {/* LEFT: MODEL TRACE */}
+      {/* =====================================================
+          LEFT PANEL
+      ===================================================== */}
 
       <aside className="truth-dock">
         <div className="dock-heading">
-          <span>MODEL TRACE</span>
+          <span>
+            MODEL TRACE
+          </span>
 
           <strong>
             {scenario === "normal"
@@ -368,16 +543,20 @@ export default function CommandCenter() {
         {scenario === "normal" ? (
           <>
             <div className="truth-event">
-              <ShieldCheck size={15} />
+              <ShieldCheck
+                size={15}
+              />
 
               <div>
                 <strong>
-                  Infrastructure model loaded
+                  Infrastructure model
+                  loaded
                 </strong>
 
                 <span>
-                  Six fictional systems and their
-                  dependencies are ready.
+                  Six fictional systems
+                  and their dependencies
+                  are ready.
                 </span>
               </div>
             </div>
@@ -391,7 +570,8 @@ export default function CommandCenter() {
                 </strong>
 
                 <span>
-                  No live emergency feeds are connected.
+                  No live emergency
+                  feeds are connected.
                 </span>
               </div>
             </div>
@@ -407,8 +587,8 @@ export default function CommandCenter() {
                 </strong>
 
                 <span>
-                  Initial event supplied to the
-                  simulation engine.
+                  Initial event supplied
+                  to the simulation engine.
                 </span>
               </div>
             </div>
@@ -417,7 +597,8 @@ export default function CommandCenter() {
               .filter(
                 (event) =>
                   event.minute > 0 &&
-                  event.minute <= atMinute
+                  event.minute <=
+                    atMinute
               )
               .slice(-3)
               .map((event) => (
@@ -425,7 +606,9 @@ export default function CommandCenter() {
                   className="truth-event warning"
                   key={event.node_id}
                 >
-                  <Activity size={15} />
+                  <Activity
+                    size={15}
+                  />
 
                   <div>
                     <strong>
@@ -433,7 +616,8 @@ export default function CommandCenter() {
                     </strong>
 
                     <span>
-                      Simulated minute {event.minute}
+                      Simulated minute{" "}
+                      {event.minute}
                     </span>
                   </div>
                 </div>
@@ -441,25 +625,44 @@ export default function CommandCenter() {
 
             {atMinute === 0 && (
               <div className="truth-event">
-                <Radio size={15} />
+                <Radio
+                  size={15}
+                />
 
                 <div>
                   <strong>
-                    Downstream failures projected
+                    Downstream failures
+                    projected
                   </strong>
 
                   <span>
-                    Move the timeline to watch the
-                    simulated cascade unfold.
+                    Move the timeline to
+                    watch the simulated
+                    cascade unfold.
                   </span>
                 </div>
               </div>
             )}
           </>
         )}
+
+        <button
+          className="livetruth-launch"
+          onClick={() =>
+            setLiveTruthOpen(true)
+          }
+        >
+          <FileText size={15} />
+
+          <span>
+            SUBMIT FIELD REPORT
+          </span>
+        </button>
       </aside>
 
-      {/* RIGHT: ASSET DETAILS / FORECAST */}
+      {/* =====================================================
+          RIGHT ASSET PANEL
+      ===================================================== */}
 
       <aside className="asset-dock">
         {selectedNode ? (
@@ -487,7 +690,9 @@ export default function CommandCenter() {
             </div>
 
             <p className="asset-description">
-              {selectedNode.description}
+              {
+                selectedNode.description
+              }
             </p>
 
             <div className="asset-stat">
@@ -506,7 +711,10 @@ export default function CommandCenter() {
               </span>
 
               <strong>
-                {selectedNode.dependsOn.length}
+                {
+                  selectedNode.dependsOn
+                    .length
+                }
               </strong>
             </div>
 
@@ -544,21 +752,24 @@ export default function CommandCenter() {
 
             {scenario === "normal" ? (
               <div className="forecast-clear">
-                <ShieldCheck size={25} />
+                <ShieldCheck
+                  size={25}
+                />
 
                 <strong>
                   No scenario running
                 </strong>
 
                 <span>
-                  Select a node or start the storm
-                  simulation.
+                  Select a node or start
+                  the storm simulation.
                 </span>
               </div>
             ) : (
               <div className="risk-summary">
                 <span>
-                  PROJECTED FAILURES WITHIN 30 MIN
+                  PROJECTED FAILURES
+                  WITHIN 30 MIN
                 </span>
 
                 <strong>
@@ -568,7 +779,8 @@ export default function CommandCenter() {
                 </strong>
 
                 <small>
-                  Calculated by the Python engine
+                  Calculated by the
+                  Python engine
                 </small>
               </div>
             )}
@@ -576,7 +788,9 @@ export default function CommandCenter() {
         )}
       </aside>
 
-      {/* INFRASTRUCTURE SELECTOR */}
+      {/* =====================================================
+          INFRASTRUCTURE SELECTOR
+      ===================================================== */}
 
       <div className="node-dock">
         <div className="node-dock-title">
@@ -591,9 +805,11 @@ export default function CommandCenter() {
                 ? "selected"
                 : ""
             }
-            onClick={() => {
-              setSelectedNodeId(node.id);
-            }}
+            onClick={() =>
+              setSelectedNodeId(
+                node.id
+              )
+            }
             title={node.name}
           >
             <span
@@ -607,18 +823,22 @@ export default function CommandCenter() {
         ))}
       </div>
 
-      {/* FUTUREFORK */}
+      {/* =====================================================
+          FUTUREFORK
+      ===================================================== */}
 
       {scenario === "storm" && (
         <section className="futurefork-dock">
           <div className="futurefork-topline">
             <div>
               <span>
-                FUTUREFORK / RESPONSE OPTIONS
+                FUTUREFORK /
+                RESPONSE OPTIONS
               </span>
 
               <strong>
-                Explore the next 30 minutes
+                Explore the next 30
+                minutes
               </strong>
             </div>
 
@@ -630,21 +850,26 @@ export default function CommandCenter() {
           </div>
 
           <div className="futurefork-options">
-            {INTERVENTIONS.map((option) => (
-              <button
-                key={option.id}
-                className={
-                  intervention === option.id
-                    ? "active"
-                    : ""
-                }
-                onClick={() => {
-                  setIntervention(option.id);
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
+            {INTERVENTIONS.map(
+              (option) => (
+                <button
+                  key={option.id}
+                  className={
+                    intervention ===
+                    option.id
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setIntervention(
+                      option.id
+                    )
+                  }
+                >
+                  {option.label}
+                </button>
+              )
+            )}
           </div>
 
           <div className="futurefork-timeline">
@@ -665,17 +890,23 @@ export default function CommandCenter() {
               step="1"
               value={atMinute}
               aria-label="Simulation minute"
-              onChange={(event) => {
+              onChange={(event) =>
                 setAtMinute(
-                  Number(event.target.value)
-                );
-              }}
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
             />
 
             <div className="futurefork-time-ends">
-              <span>NOW</span>
+              <span>
+                NOW
+              </span>
 
-              <span>+30 MIN</span>
+              <span>
+                +30 MIN
+              </span>
             </div>
           </div>
 
@@ -686,7 +917,8 @@ export default function CommandCenter() {
                   simulation.summary
                     .projected_affected_systems
                 }{" "}
-                projected system failures
+                projected system
+                failures
               </strong>
 
               <span>
@@ -703,14 +935,19 @@ export default function CommandCenter() {
           )}
 
           <p className="futurefork-disclaimer">
-            *Fictional network. Illustrative failure
-            times. Service populations can overlap.
-            Results are simulated, not live forecasts.
+            *Fictional network.
+            Illustrative failure times.
+            Service populations can
+            overlap. Results are
+            simulated, not live
+            forecasts.
           </p>
         </section>
       )}
 
-      {/* STORM / RESET */}
+      {/* =====================================================
+          STORM / RESET CONTROL
+      ===================================================== */}
 
       <div className="scenario-control">
         {scenario === "normal" ? (
@@ -718,21 +955,312 @@ export default function CommandCenter() {
             className="storm-trigger"
             onClick={startStorm}
           >
-            <CloudLightning size={17} />
+            <CloudLightning
+              size={17}
+            />
 
             SIMULATE MAJOR STORM
           </button>
         ) : (
           <button
             className="reset-trigger"
-            onClick={resetSimulation}
+            onClick={
+              resetSimulation
+            }
           >
-            <RotateCcw size={16} />
+            <RotateCcw
+              size={16}
+            />
 
             RESET SIMULATION
           </button>
         )}
       </div>
+
+      {/* =====================================================
+          LIVETRUTH PORTAL
+      ===================================================== */}
+
+      {liveTruthOpen &&
+        createPortal(
+          <div
+            className="livetruth-workbench"
+            style={{
+              position: "fixed",
+              zIndex: 999999,
+              top: "90px",
+              left: "24px",
+              width: "380px",
+              maxWidth:
+                "calc(100vw - 48px)",
+              maxHeight:
+                "calc(100vh - 120px)",
+              overflowY: "auto",
+              boxSizing:
+                "border-box",
+              padding: "22px",
+              background:
+                "rgba(7, 12, 16, 0.98)",
+              border:
+                "1px solid rgba(255,255,255,0.16)",
+              color: "#eef4f4",
+              boxShadow:
+                "0 30px 90px rgba(0,0,0,0.60)",
+              backdropFilter:
+                "blur(24px)",
+            }}
+          >
+            <div className="livetruth-header">
+              <div className="livetruth-title">
+                <div className="livetruth-icon">
+                  <Sparkles
+                    size={16}
+                  />
+                </div>
+
+                <div>
+                  <span>
+                    LIVETRUTH
+                  </span>
+
+                  <strong>
+                    Field Evidence
+                  </strong>
+                </div>
+              </div>
+
+              <button
+                className="livetruth-close"
+                aria-label="Close LiveTruth"
+                onClick={
+                  closeLiveTruth
+                }
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {!interpretedReport ? (
+              <>
+                <p className="livetruth-intro">
+                  Submit a responder or
+                  sensor report. Gemini
+                  extracts what the
+                  report says without
+                  treating it as
+                  confirmed fact.
+                </p>
+
+                <label
+                  className="livetruth-label"
+                  htmlFor="field-report"
+                >
+                  FIELD REPORT
+                </label>
+
+                <textarea
+                  id="field-report"
+                  value={reportText}
+                  maxLength={1500}
+                  onChange={(event) =>
+                    setReportText(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Example: Water is rising around Pump W2, but I cannot confirm whether the equipment is damaged."
+                />
+
+                <div className="livetruth-helper-row">
+                  <span>
+                    {
+                      reportText.length
+                    }
+                    /1500
+                  </span>
+
+                  <button
+                    className="livetruth-sample"
+                    onClick={() => {
+                      setReportText(
+                        SAMPLE_REPORT
+                      );
+
+                      setReportError(
+                        null
+                      );
+                    }}
+                  >
+                    LOAD SAMPLE
+                  </button>
+                </div>
+
+                {reportError && (
+                  <div className="livetruth-api-error">
+                    <strong>
+                      REPORT ANALYSIS
+                      UNAVAILABLE
+                    </strong>
+
+                    <span>
+                      {reportError}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  className="livetruth-analyze"
+                  disabled={
+                    reportLoading
+                  }
+                  onClick={
+                    analyzeReport
+                  }
+                >
+                  {reportLoading ? (
+                    <>
+                      <LoaderCircle
+                        className="livetruth-spinner"
+                        size={16}
+                      />
+
+                      ANALYZING REPORT
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles
+                        size={16}
+                      />
+
+                      ANALYZE REPORT
+                    </>
+                  )}
+                </button>
+
+                <p className="livetruth-safety-note">
+                  Analysis does not
+                  verify the identity of
+                  the reporter or
+                  confirm that the event
+                  occurred.
+                </p>
+              </>
+            ) : (
+              <div className="livetruth-review">
+                <div className="livetruth-verification">
+                  <span className="livetruth-unverified-dot" />
+
+                  UNVERIFIED EVIDENCE
+                </div>
+
+                <div className="livetruth-review-block">
+                  <span>
+                    AI SUMMARY
+                  </span>
+
+                  <strong>
+                    {
+                      interpretedReport
+                        .extraction
+                        .summary
+                    }
+                  </strong>
+                </div>
+
+                <div className="livetruth-review-grid">
+                  <div>
+                    <span>
+                      MATCHED ASSET
+                    </span>
+
+                    <strong>
+                      {interpretedReport
+                        .extraction
+                        .asset_id ===
+                      "unknown"
+                        ? "Unknown"
+                        : interpretedReport
+                            .extraction
+                            .asset_id}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      INCIDENT TYPE
+                    </span>
+
+                    <strong>
+                      {interpretedReport
+                        .extraction
+                        .incident_type.replaceAll(
+                          "_",
+                          " "
+                        )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="livetruth-review-block">
+                  <span>
+                    REPORTED EVIDENCE
+                  </span>
+
+                  <p>
+                    {
+                      interpretedReport
+                        .extraction
+                        .evidence_description
+                    }
+                  </p>
+                </div>
+
+                <div className="livetruth-review-block uncertainty">
+                  <span>
+                    WHAT REMAINS
+                    UNCERTAIN
+                  </span>
+
+                  <p>
+                    {
+                      interpretedReport
+                        .extraction
+                        .uncertainty
+                    }
+                  </p>
+                </div>
+
+                <div className="livetruth-not-applied">
+                  <ShieldCheck
+                    size={15}
+                  />
+
+                  <div>
+                    <strong>
+                      Human review
+                      required
+                    </strong>
+
+                    <span>
+                      This report has not
+                      changed the CASCADE
+                      simulation.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  className="livetruth-review-another"
+                  onClick={
+                    clearReport
+                  }
+                >
+                  REVIEW ANOTHER REPORT
+                </button>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
