@@ -1,3 +1,7 @@
+import { useEffect, useMemo, useState } from "react";
+
+import { useNavigate } from "react-router-dom";
+
 import {
   Activity,
   ArrowLeft,
@@ -5,84 +9,268 @@ import {
   Radio,
   RotateCcw,
   ShieldCheck,
-  Users,
   Zap,
 } from "lucide-react";
 
-import {
-  useMemo,
-  useState,
-} from "react";
+import CityMap from "../components/command/CityMap";
 
 import {
   getInfrastructureNodes,
-  type Scenario,
+  type InfrastructureNode,
 } from "../data/infrastructure";
 
-import CityMap from "../components/command/CityMap";
-
-import { useNavigate } from "react-router-dom";
-
 import "../styles/command.css";
+
+type Intervention =
+  | "none"
+  | "protect_hospital"
+  | "stabilize_comms";
+
+type Scenario = "normal" | "storm";
+
+type SimulationNode = {
+  id: string;
+  name: string;
+  status: InfrastructureNode["status"];
+  failure_minute: number | null;
+  caused_by: string | null;
+  population_served: number;
+};
+
+type TimelineEvent = {
+  minute: number;
+  node_id: string;
+  name: string;
+  caused_by: string | null;
+};
+
+type SimulationResult = {
+  scenario: string;
+
+  intervention: Intervention;
+
+  intervention_label: string;
+
+  at_minute: number;
+
+  horizon_minutes: number;
+
+  nodes: SimulationNode[];
+
+  timeline: TimelineEvent[];
+
+  summary: {
+    projected_affected_systems: number;
+    service_exposures: number;
+  };
+
+  disclaimer: string;
+};
+
+const BASE_NODES = getInfrastructureNodes("normal");
+
+const INTERVENTIONS: {
+  id: Intervention;
+  label: string;
+}[] = [
+  {
+    id: "none",
+    label: "No intervention",
+  },
+  {
+    id: "protect_hospital",
+    label: "Protect hospital",
+  },
+  {
+    id: "stabilize_comms",
+    label: "Support communications",
+  },
+];
 
 export default function CommandCenter() {
   const navigate = useNavigate();
 
-  const [
-    scenario,
-    setScenario,
-  ] =
+  const [scenario, setScenario] =
     useState<Scenario>("normal");
 
-  const [
-    selectedNodeId,
-    setSelectedNodeId,
-  ] =
+  const [intervention, setIntervention] =
+    useState<Intervention>("none");
+
+  const [atMinute, setAtMinute] =
+    useState(0);
+
+  const [selectedNodeId, setSelectedNodeId] =
     useState<string | null>(null);
 
-  const nodes = useMemo(
-    () =>
-      getInfrastructureNodes(
-        scenario
-      ),
-    [scenario]
-  );
+  const [simulation, setSimulation] =
+    useState<SimulationResult | null>(null);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  /*
+    Request an updated simulation from Python.
+
+    This runs when:
+    - the storm begins
+    - an intervention changes
+    - the simulation minute changes
+  */
+
+  useEffect(() => {
+    if (scenario !== "storm") {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadSimulation() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(
+          "http://127.0.0.1:8000/api/simulate",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              intervention,
+              at_minute: atMinute,
+            }),
+
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Simulation request failed: ${response.status}`
+          );
+        }
+
+        const result =
+          (await response.json()) as SimulationResult;
+
+        if (!controller.signal.aborted) {
+          setSimulation(result);
+        }
+      } catch (requestError) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        console.error(
+          "CASCADE simulation error:",
+          requestError
+        );
+
+        setError(
+          "Could not reach the Python simulation engine. Check that the backend is running."
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSimulation();
+
+    return () => {
+      controller.abort();
+    };
+  }, [scenario, intervention, atMinute]);
+
+  /*
+    Combine the calculated Python results with
+    our existing map coordinates and node details.
+  */
+
+  const nodes = useMemo(() => {
+    if (scenario === "normal" || !simulation) {
+      return BASE_NODES;
+    }
+
+    const calculatedNodes = new Map(
+      simulation.nodes.map((node) => [
+        node.id,
+        node,
+      ])
+    );
+
+    return BASE_NODES.map((baseNode) => {
+      const calculated =
+        calculatedNodes.get(baseNode.id);
+
+      if (!calculated) {
+        return baseNode;
+      }
+
+      return {
+        ...baseNode,
+
+        status: calculated.status,
+
+        predictedFailureMinutes:
+          calculated.failure_minute ?? undefined,
+      };
+    });
+  }, [scenario, simulation]);
 
   const selectedNode =
-    selectedNodeId
-      ? nodes.find(
-          (node) =>
-            node.id ===
-            selectedNodeId
-        ) ?? null
-      : null;
+    nodes.find(
+      (node) => node.id === selectedNodeId
+    ) ?? null;
 
-  const affectedNodes =
-    nodes.filter(
-      (node) =>
-        node.status !== "healthy"
-    );
+  const selectedResult =
+    simulation?.nodes.find(
+      (node) => node.id === selectedNodeId
+    ) ?? null;
 
-  const serviceExposure =
-    affectedNodes.reduce(
-      (total, node) =>
-        total +
-        node.populationServed,
-      0
-    );
+  /*
+    Begin a new storm simulation.
+  */
 
   function startStorm() {
-    setScenario("storm");
+    setIntervention("none");
 
-    setSelectedNodeId(
-      "substation-n4"
-    );
+    setAtMinute(0);
+
+    setSelectedNodeId("substation-n4");
+
+    setSimulation(null);
+
+    setError(null);
+
+    setScenario("storm");
   }
 
-  function resetScenario() {
+  /*
+    Return to the normal monitoring view.
+  */
+
+  function resetSimulation() {
     setScenario("normal");
 
+    setIntervention("none");
+
+    setAtMinute(0);
+
     setSelectedNodeId(null);
+
+    setSimulation(null);
+
+    setError(null);
+
+    setLoading(false);
   }
 
   return (
@@ -93,31 +281,29 @@ export default function CommandCenter() {
           : ""
       }`}
     >
-      {/* MAP IS THE EXPERIENCE */}
+      {/* INTERACTIVE MAP */}
 
       <div className="command-map-stage">
         <CityMap
           nodes={nodes}
-          selectedNodeId={
-            selectedNodeId
-          }
-          onNodeSelect={(node) =>
+          selectedNodeId={selectedNodeId}
+          futureForkOpen={scenario === "storm"}
+          onNodeSelect={(node) => {
             setSelectedNodeId(
               node?.id ?? null
-            )
-          }
+            );
+          }}
         />
       </div>
 
-      {/* TOP HUD */}
+      {/* TOP NAVIGATION */}
 
       <header className="command-hud">
         <div className="hud-brand">
           <button
             className="hud-back"
-            onClick={() =>
-              navigate("/")
-            }
+            aria-label="Return to landing page"
+            onClick={() => navigate("/")}
           >
             <ArrowLeft size={17} />
           </button>
@@ -133,20 +319,18 @@ export default function CommandCenter() {
 
         <div className="hud-center">
           <span
-            className={`scenario-dot ${
-              scenario
-            }`}
+            className={`scenario-dot ${scenario}`}
           />
 
           {scenario === "normal"
-            ? "MONITORING"
-            : "SIMULATION ACTIVE"}
+            ? "SIMULATION READY"
+            : `SIMULATED INCIDENT · T+${atMinute} MIN`}
         </div>
 
         <div className="hud-right">
           <Activity size={14} />
 
-          LIVE MODEL
+          LOCAL DEMO MODEL
         </div>
       </header>
 
@@ -154,50 +338,46 @@ export default function CommandCenter() {
 
       {scenario === "storm" && (
         <div className="incident-banner">
-          <CloudLightning
-            size={16}
-          />
+          <CloudLightning size={16} />
 
           <div>
             <span>
-              SIMULATED INCIDENT
+              FICTIONAL DISASTER SCENARIO
             </span>
 
             <strong>
-              Severe storm impacting
-              north grid sector
+              Storm disables North Grid Substation N4
             </strong>
           </div>
         </div>
       )}
 
-      {/* LIVE TRUTH FLOATING INTELLIGENCE */}
+      {/* LEFT: MODEL TRACE */}
 
       <aside className="truth-dock">
         <div className="dock-heading">
-          <span>LIVE TRUTH</span>
+          <span>MODEL TRACE</span>
 
           <strong>
-            Situational Intelligence
+            {scenario === "normal"
+              ? "Scenario ready"
+              : "Failure propagation"}
           </strong>
         </div>
 
         {scenario === "normal" ? (
           <>
             <div className="truth-event">
-              <ShieldCheck
-                size={15}
-              />
+              <ShieldCheck size={15} />
 
               <div>
                 <strong>
-                  Sources verified
+                  Infrastructure model loaded
                 </strong>
 
                 <span>
-                  6 infrastructure
-                  systems reporting
-                  normally
+                  Six fictional systems and their
+                  dependencies are ready.
                 </span>
               </div>
             </div>
@@ -207,13 +387,11 @@ export default function CommandCenter() {
 
               <div>
                 <strong>
-                  No conflicting
-                  reports
+                  Demo data only
                 </strong>
 
                 <span>
-                  Evidence streams
-                  agree
+                  No live emergency feeds are connected.
                 </span>
               </div>
             </div>
@@ -225,62 +403,70 @@ export default function CommandCenter() {
 
               <div>
                 <strong>
-                  Substation N4
-                  offline
+                  N4 failure at minute 0
                 </strong>
 
                 <span>
-                  Grid telemetry
-                  confirms failure
+                  Initial event supplied to the
+                  simulation engine.
                 </span>
               </div>
             </div>
 
-            <div className="truth-event warning">
-              <Radio size={15} />
+            {simulation?.timeline
+              .filter(
+                (event) =>
+                  event.minute > 0 &&
+                  event.minute <= atMinute
+              )
+              .slice(-3)
+              .map((event) => (
+                <div
+                  className="truth-event warning"
+                  key={event.node_id}
+                >
+                  <Activity size={15} />
 
-              <div>
-                <strong>
-                  Tower C7 degraded
-                </strong>
+                  <div>
+                    <strong>
+                      {event.name} failed
+                    </strong>
 
-                <span>
-                  Battery fallback
-                  detected
-                </span>
+                    <span>
+                      Simulated minute {event.minute}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+            {atMinute === 0 && (
+              <div className="truth-event">
+                <Radio size={15} />
+
+                <div>
+                  <strong>
+                    Downstream failures projected
+                  </strong>
+
+                  <span>
+                    Move the timeline to watch the
+                    simulated cascade unfold.
+                  </span>
+                </div>
               </div>
-            </div>
-
-            <div className="truth-event">
-              <ShieldCheck
-                size={15}
-              />
-
-              <div>
-                <strong>
-                  Incident evidence
-                  consistent
-                </strong>
-
-                <span>
-                  Confidence 94%
-                </span>
-              </div>
-            </div>
+            )}
           </>
         )}
       </aside>
 
-      {/* RIGHT INTELLIGENCE */}
+      {/* RIGHT: ASSET DETAILS / FORECAST */}
 
       <aside className="asset-dock">
         {selectedNode ? (
           <>
             <div className="dock-heading">
               <span>
-                {
-                  selectedNode.type
-                }
+                {selectedNode.type}
               </span>
 
               <strong>
@@ -301,14 +487,12 @@ export default function CommandCenter() {
             </div>
 
             <p className="asset-description">
-              {
-                selectedNode.description
-              }
+              {selectedNode.description}
             </p>
 
             <div className="asset-stat">
               <span>
-                SERVICE EXPOSURE
+                SERVICE COVERAGE*
               </span>
 
               <strong>
@@ -322,28 +506,29 @@ export default function CommandCenter() {
               </span>
 
               <strong>
-                {
-                  selectedNode
-                    .dependsOn.length
-                }
+                {selectedNode.dependsOn.length}
               </strong>
             </div>
 
-            {selectedNode.predictedFailureMinutes !==
-              undefined && (
-              <div className="failure-clock">
-                <span>
-                  PREDICTED FAILURE
-                </span>
+            {scenario === "storm" &&
+              simulation &&
+              selectedResult && (
+                <div className="failure-clock">
+                  <span>
+                    MODELED FAILURE
+                  </span>
 
-                <strong>
-                  {selectedNode.predictedFailureMinutes ===
-                  0
-                    ? "NOW"
-                    : `${selectedNode.predictedFailureMinutes} MIN`}
-                </strong>
-              </div>
-            )}
+                  <strong>
+                    {selectedResult.failure_minute ===
+                    null
+                      ? "NOT WITHIN 30 MIN"
+                      : selectedResult.failure_minute ===
+                          0
+                        ? "MINUTE 0"
+                        : `MINUTE ${selectedResult.failure_minute}`}
+                  </strong>
+                </div>
+              )}
           </>
         ) : (
           <>
@@ -357,39 +542,33 @@ export default function CommandCenter() {
               </strong>
             </div>
 
-            {scenario ===
-            "normal" ? (
+            {scenario === "normal" ? (
               <div className="forecast-clear">
-                <ShieldCheck
-                  size={25}
-                />
+                <ShieldCheck size={25} />
 
                 <strong>
-                  No active cascade
+                  No scenario running
                 </strong>
 
                 <span>
-                  Select any
-                  infrastructure node
-                  to inspect it.
+                  Select a node or start the storm
+                  simulation.
                 </span>
               </div>
             ) : (
               <div className="risk-summary">
                 <span>
-                  SYSTEMS AT RISK
+                  PROJECTED FAILURES WITHIN 30 MIN
                 </span>
 
                 <strong>
-                  {
-                    affectedNodes.length
-                  }
+                  {simulation?.summary
+                    .projected_affected_systems ??
+                    "—"}
                 </strong>
 
                 <small>
-                  Service exposure:
-                  {" "}
-                  {serviceExposure.toLocaleString()}
+                  Calculated by the Python engine
                 </small>
               </div>
             )}
@@ -397,7 +576,7 @@ export default function CommandCenter() {
         )}
       </aside>
 
-      {/* NODE SELECTOR */}
+      {/* INFRASTRUCTURE SELECTOR */}
 
       <div className="node-dock">
         <div className="node-dock-title">
@@ -408,16 +587,14 @@ export default function CommandCenter() {
           <button
             key={node.id}
             className={
-              selectedNodeId ===
-              node.id
+              selectedNodeId === node.id
                 ? "selected"
                 : ""
             }
-            onClick={() =>
-              setSelectedNodeId(
-                node.id
-              )
-            }
+            onClick={() => {
+              setSelectedNodeId(node.id);
+            }}
+            title={node.name}
           >
             <span
               className={`node-status ${node.status}`}
@@ -430,7 +607,110 @@ export default function CommandCenter() {
         ))}
       </div>
 
-      {/* SCENARIO CONTROL */}
+      {/* FUTUREFORK */}
+
+      {scenario === "storm" && (
+        <section className="futurefork-dock">
+          <div className="futurefork-topline">
+            <div>
+              <span>
+                FUTUREFORK / RESPONSE OPTIONS
+              </span>
+
+              <strong>
+                Explore the next 30 minutes
+              </strong>
+            </div>
+
+            <span className="futurefork-engine">
+              {loading
+                ? "CALCULATING..."
+                : "PYTHON MODEL"}
+            </span>
+          </div>
+
+          <div className="futurefork-options">
+            {INTERVENTIONS.map((option) => (
+              <button
+                key={option.id}
+                className={
+                  intervention === option.id
+                    ? "active"
+                    : ""
+                }
+                onClick={() => {
+                  setIntervention(option.id);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="futurefork-timeline">
+            <div className="futurefork-time-label">
+              <span>
+                SIMULATION TIME
+              </span>
+
+              <strong>
+                T + {atMinute} MIN
+              </strong>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max="30"
+              step="1"
+              value={atMinute}
+              aria-label="Simulation minute"
+              onChange={(event) => {
+                setAtMinute(
+                  Number(event.target.value)
+                );
+              }}
+            />
+
+            <div className="futurefork-time-ends">
+              <span>NOW</span>
+
+              <span>+30 MIN</span>
+            </div>
+          </div>
+
+          {simulation && (
+            <div className="futurefork-outcome">
+              <strong>
+                {
+                  simulation.summary
+                    .projected_affected_systems
+                }{" "}
+                projected system failures
+              </strong>
+
+              <span>
+                {simulation.summary.service_exposures.toLocaleString()}{" "}
+                service exposures*
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <p className="futurefork-error">
+              {error}
+            </p>
+          )}
+
+          <p className="futurefork-disclaimer">
+            *Fictional network. Illustrative failure
+            times. Service populations can overlap.
+            Results are simulated, not live forecasts.
+          </p>
+        </section>
+      )}
+
+      {/* STORM / RESET */}
 
       <div className="scenario-control">
         {scenario === "normal" ? (
@@ -438,45 +718,21 @@ export default function CommandCenter() {
             className="storm-trigger"
             onClick={startStorm}
           >
-            <CloudLightning
-              size={17}
-            />
+            <CloudLightning size={17} />
 
             SIMULATE MAJOR STORM
           </button>
         ) : (
           <button
             className="reset-trigger"
-            onClick={
-              resetScenario
-            }
+            onClick={resetSimulation}
           >
-            <RotateCcw
-              size={16}
-            />
+            <RotateCcw size={16} />
 
             RESET SIMULATION
           </button>
         )}
       </div>
-
-      {/* IMPACT COUNTER */}
-
-      {scenario === "storm" && (
-        <div className="impact-counter">
-          <Users size={14} />
-
-          <div>
-            <span>
-              SERVICE EXPOSURE
-            </span>
-
-            <strong>
-              {serviceExposure.toLocaleString()}
-            </strong>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

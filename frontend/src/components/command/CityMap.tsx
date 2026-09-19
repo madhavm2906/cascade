@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import {
+  LngLatBounds,
   Map,
   NavigationControl,
   setWorkerUrl,
@@ -8,6 +9,8 @@ import {
 } from "maplibre-gl";
 
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   createDependencyGeoJSON,
@@ -18,12 +21,14 @@ import {
 type CityMapProps = {
   nodes: InfrastructureNode[];
   selectedNodeId: string | null;
+  futureForkOpen: boolean;
   onNodeSelect: (node: InfrastructureNode | null) => void;
 };
 
 export default function CityMap({
   nodes,
   selectedNodeId,
+  futureForkOpen,
   onNodeSelect,
 }: CityMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -34,14 +39,23 @@ export default function CityMap({
   const selectedRef = useRef(selectedNodeId);
   const onSelectRef = useRef(onNodeSelect);
 
+  // Keep event handlers connected to the latest React state.
+
   nodesRef.current = nodes;
   selectedRef.current = selectedNodeId;
   onSelectRef.current = onNodeSelect;
 
-  // Create the map only once.
+  /*
+    Create the map once.
+
+    Keep the worker setup that fixed our earlier
+    MapLibre rendering problem.
+  */
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current) {
+      return;
+    }
 
     setWorkerUrl(workerUrl);
 
@@ -101,12 +115,19 @@ export default function CityMap({
       console.error("CASCADE MAP ERROR:", event.error);
     });
 
-    // Initialize the infrastructure when the map style loads.
+    /*
+      Create the infrastructure layers after
+      the map style is ready.
+    */
 
     map.once("style.load", () => {
+      if (mapRef.current !== map) {
+        return;
+      }
+
       console.log("CASCADE: Map style loaded.");
 
-      // Infrastructure dependency lines
+      // Dependency connections
 
       map.addSource("dependencies", {
         type: "geojson",
@@ -118,7 +139,9 @@ export default function CityMap({
 
       map.addLayer({
         id: "dependency-lines",
+
         type: "line",
+
         source: "dependencies",
 
         paint: {
@@ -144,7 +167,7 @@ export default function CityMap({
         },
       });
 
-      // Infrastructure nodes
+      // Infrastructure point data
 
       map.addSource("infrastructure-nodes", {
         type: "geojson",
@@ -154,11 +177,13 @@ export default function CityMap({
         ),
       });
 
-      // Outer halo makes the locations easier to identify.
+      // Soft colored halos
 
       map.addLayer({
         id: "node-halo",
+
         type: "circle",
+
         source: "infrastructure-nodes",
 
         paint: {
@@ -189,11 +214,13 @@ export default function CityMap({
         },
       });
 
-      // Main visible infrastructure points
+      // Main infrastructure points
 
       map.addLayer({
         id: "node-core",
+
         type: "circle",
+
         source: "infrastructure-nodes",
 
         paint: {
@@ -224,11 +251,13 @@ export default function CityMap({
         },
       });
 
-      // Selected infrastructure ring
+      // Ring around the selected node
 
       map.addLayer({
         id: "selected-node",
+
         type: "circle",
+
         source: "infrastructure-nodes",
 
         filter: [
@@ -248,12 +277,16 @@ export default function CityMap({
         },
       });
 
-      // Clicking a node
+      /*
+        Click a node to inspect its details.
+      */
 
       map.on("click", "node-core", (event) => {
         const id = event.features?.[0]?.properties?.id;
 
-        if (!id) return;
+        if (!id) {
+          return;
+        }
 
         const node = nodesRef.current.find(
           (item) => item.id === id
@@ -264,7 +297,9 @@ export default function CityMap({
         }
       });
 
-      // Clear selection when clicking the background.
+      /*
+        Clicking the empty map clears the selection.
+      */
 
       map.on("click", (event) => {
         const features = map.queryRenderedFeatures(
@@ -302,19 +337,29 @@ export default function CityMap({
     };
   }, []);
 
-  // Update infrastructure when the scenario changes.
+  /*
+    Update the infrastructure data whenever Python
+    returns new simulation results.
+
+    This changes node colors and dependency lines
+    without moving the camera.
+  */
 
   useEffect(() => {
     const map = mapRef.current;
 
-    if (!map) return;
+    if (!map) {
+      return;
+    }
 
     const nodeSource = map.getSource(
       "infrastructure-nodes"
     ) as GeoJSONSource | undefined;
 
     if (nodeSource) {
-      nodeSource.setData(createNodeGeoJSON(nodes));
+      nodeSource.setData(
+        createNodeGeoJSON(nodes)
+      );
     }
 
     const dependencySource = map.getSource(
@@ -328,7 +373,13 @@ export default function CityMap({
     }
   }, [nodes]);
 
-  // Highlight the selected infrastructure node.
+  /*
+    Highlight the selected infrastructure node.
+
+    IMPORTANT:
+    This effect only changes the selection ring.
+    It does not move the map.
+  */
 
   useEffect(() => {
     const map = mapRef.current;
@@ -342,23 +393,132 @@ export default function CityMap({
       ["get", "id"],
       selectedNodeId ?? "",
     ]);
+  }, [selectedNodeId]);
 
-    if (!selectedNodeId) return;
+  /*
+    CAMERA BEHAVIOR
 
-    const node = nodes.find(
-      (item) => item.id === selectedNodeId
+    FutureFork closed:
+      Focus on a selected infrastructure node.
+
+    FutureFork open:
+      Fit all six nodes into the visible map area
+      above the FutureFork panel.
+
+    Timeline changes do not trigger this effect.
+  */
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    // FUTUREFORK IS OPEN
+
+    if (futureForkOpen) {
+      const frame = requestAnimationFrame(() => {
+        if (mapRef.current !== map) {
+          return;
+        }
+
+        const bounds = new LngLatBounds();
+
+        nodesRef.current.forEach((node) => {
+          bounds.extend(node.coordinates);
+        });
+
+        const mapRect = map
+          .getContainer()
+          .getBoundingClientRect();
+
+        const futureForkPanel =
+          document.querySelector(
+            ".futurefork-dock"
+          );
+
+        const panelRect =
+          futureForkPanel?.getBoundingClientRect();
+
+        /*
+          Measure the actual panel position.
+
+          FutureFork may have a different height
+          depending on browser size, so we should
+          not use a fixed amount of empty space.
+        */
+
+        const coveredBottom = panelRect
+          ? mapRect.bottom - panelRect.top + 24
+          : mapRect.height * 0.4;
+
+        /*
+          Reserve room for:
+          - the top navigation and incident banner
+          - the floating left and right panels
+          - FutureFork at the bottom
+        */
+
+        const topPadding = Math.min(
+          145,
+          Math.round(mapRect.height * 0.17)
+        );
+
+        const bottomPadding = Math.min(
+          Math.max(coveredBottom, 100),
+          Math.round(mapRect.height * 0.58)
+        );
+
+        const sidePadding = Math.min(
+          315,
+          Math.round(mapRect.width * 0.19)
+        );
+
+        map.fitBounds(bounds, {
+          padding: {
+            top: topPadding,
+
+            bottom: bottomPadding,
+
+            left: sidePadding,
+
+            right: sidePadding,
+          },
+
+          maxZoom: 14.2,
+
+          duration: 800,
+        });
+      });
+
+      return () => {
+        cancelAnimationFrame(frame);
+      };
+    }
+
+    // FUTUREFORK IS CLOSED
+
+    if (!selectedNodeId) {
+      return;
+    }
+
+    const selectedNode = nodesRef.current.find(
+      (node) => node.id === selectedNodeId
     );
 
-    if (!node) return;
+    if (!selectedNode) {
+      return;
+    }
 
     map.easeTo({
-      center: node.coordinates,
+      center: selectedNode.coordinates,
 
       zoom: Math.max(map.getZoom(), 14),
 
       duration: 700,
     });
-  }, [selectedNodeId, nodes]);
+  }, [selectedNodeId, futureForkOpen]);
 
   return (
     <div
