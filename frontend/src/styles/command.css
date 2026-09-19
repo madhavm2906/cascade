@@ -2078,4 +2078,114 @@
     transform: rotate(360deg);
   }
 }
+
+/* =========================================================
+   LIVETRUTH HUMAN REVIEW BRIDGE
+   Visual redesign comes later.
+   ========================================================= */
+
+.livetruth-eligibility {
+  margin-top: 16px;
+  padding: 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.livetruth-eligibility strong {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.livetruth-eligibility span {
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.livetruth-eligibility.confirmed {
+  background: rgba(74, 139, 116, 0.11);
+  border-color: rgba(106, 183, 155, 0.28);
+  color: #a9d7c7;
+}
+
+.livetruth-eligibility.evidence-only {
+  background: rgba(163, 125, 55, 0.1);
+  border-color: rgba(209, 173, 93, 0.25);
+  color: #d5c188;
+}
+
+.livetruth-approve {
+  width: 100%;
+  min-height: 46px;
+
+  margin-top: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  border: 1px solid rgba(106, 195, 163, 0.5);
+
+  background: rgba(70, 151, 122, 0.2);
+
+  color: #d9f1e8;
+
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+
+  cursor: pointer;
+}
+
+.livetruth-approve:hover {
+  background: rgba(70, 151, 122, 0.3);
+}
+
+.livetruth-approved {
+  margin-top: 14px;
+  padding: 12px;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  background: rgba(70, 151, 122, 0.14);
+
+  border: 1px solid rgba(106, 195, 163, 0.34);
+
+  color: #a7d7c6;
+}
+
+.livetruth-approved > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.livetruth-approved strong {
+  color: #d9efe7;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.livetruth-approved span {
+  color: #9eb7af;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.futurefork-approved-input {
+  margin-top: 10px;
+
+  color: #9fc7ba;
+
+  font-size: 9px;
+  letter-spacing: 0.06em;
+
+  overflow-wrap: anywhere;
+}
 }

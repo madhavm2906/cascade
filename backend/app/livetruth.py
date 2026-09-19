@@ -8,7 +8,6 @@ from google import genai
 from pydantic import BaseModel, Field
 
 
-# Load values from the project .env file
 load_dotenv()
 
 
@@ -52,15 +51,26 @@ class ExtractedReport(BaseModel):
 
     uncertainty: str
 
+    simulation_eligibility: Literal[
+        "confirmed_failure",
+        "evidence_only",
+    ]
+
+    simulation_reason: str
+
 
 class InterpretedReport(BaseModel):
     original_text: str
 
     extraction: ExtractedReport
 
-    verification_status: Literal["unverified"] = "unverified"
+    verification_status: Literal[
+        "unverified"
+    ] = "unverified"
 
-    applied_to_simulation: Literal[False] = False
+    applied_to_simulation: Literal[
+        False
+    ] = False
 
     note: str = (
         "AI extracted information from a fictional field report. "
@@ -70,7 +80,7 @@ class InterpretedReport(BaseModel):
 
 
 # ============================================================
-# CASCADE FICTIONAL INFRASTRUCTURE
+# LIVETRUTH SYSTEM INSTRUCTION
 # ============================================================
 
 
@@ -79,8 +89,8 @@ You are LiveTruth, the field-report interpretation component
 inside CASCADE, a fictional critical-infrastructure disaster
 response simulation.
 
-Your job is ONLY to extract information that is explicitly
-supported by the field report.
+Your job is ONLY to extract information explicitly supported
+by the field report.
 
 CASCADE contains these fictional infrastructure assets:
 
@@ -102,41 +112,94 @@ Traffic Control Hub T4
 fire-f2
 Emergency Station F2
 
-Rules:
 
-1. Do not claim that a report is verified.
-2. Do not invent damage, casualties, failures, locations,
-   causes, or infrastructure conditions.
+IMPORTANT RULES
+
+1. Never claim that a report is verified.
+
+2. Never invent damage, casualties, infrastructure failures,
+   locations, causes, or operating conditions.
+
 3. If an infrastructure asset cannot be clearly identified,
    use "unknown".
-4. Extract uncertainty exactly when the reporter is unsure.
-5. A report is evidence, not confirmed truth.
-6. Do not give emergency dispatch instructions.
+
+4. Preserve uncertainty from the report.
+
+5. A field report is evidence, not confirmed truth.
+
+6. Do not provide emergency dispatch instructions.
+
 7. Do not autonomously modify infrastructure or simulation state.
-8. Keep the summary concise.
-9. evidence_description should describe what the reporter actually
-   observed or claimed.
-10. uncertainty should clearly state what is unknown, unclear,
-    or unconfirmed.
+
+8. Keep summaries concise.
+
+9. evidence_description must describe only what the reporter
+   actually observed or claimed.
+
+10. uncertainty must clearly describe anything unknown,
+    unclear, or unconfirmed.
+
+
+SIMULATION ELIGIBILITY
+
+Return simulation_eligibility="confirmed_failure" ONLY when:
+
+- a known CASCADE infrastructure asset is clearly identified
+
+AND
+
+- the reporter explicitly states that the asset itself is
+  failed, offline, non-operational, down, disabled, or otherwise
+  clearly unavailable.
+
+Examples that MAY qualify:
+
+"Tower C7 has lost power and is offline."
+
+"Water Pump W2 has stopped operating."
+
+"Traffic Control Hub T4 is down."
+
+
+Return simulation_eligibility="evidence_only" when:
+
+- the asset is unknown
+- damage is suspected rather than confirmed
+- the reporter says they cannot confirm whether it works
+- flooding, smoke, water, debris, or another hazard is merely
+  nearby the asset
+- the report says the asset may fail
+- the operational state is unclear
+- the report contains only observations without confirmation
+  that the infrastructure asset itself is unavailable
+
+
+The AI does NOT decide whether evidence becomes simulation input.
+
+simulation_eligibility only tells a human reviewer whether
+the language in the report explicitly describes a failure.
+
+simulation_reason must briefly explain why the report was
+classified that way.
 """
 
 
 # ============================================================
-# STRUCTURED OUTPUT SCHEMA
+# STRUCTURED OUTPUT
 # ============================================================
 
 
 RESPONSE_SCHEMA = {
     "type": "OBJECT",
+
     "properties": {
         "summary": {
             "type": "STRING",
-            "description": (
-                "A concise summary of what the field report says."
-            ),
         },
+
         "asset_id": {
             "type": "STRING",
+
             "enum": [
                 "substation-n4",
                 "hospital-north",
@@ -146,13 +209,11 @@ RESPONSE_SCHEMA = {
                 "fire-f2",
                 "unknown",
             ],
-            "description": (
-                "The fictional CASCADE infrastructure asset that "
-                "is clearly referenced by the report."
-            ),
         },
+
         "incident_type": {
             "type": "STRING",
+
             "enum": [
                 "power_failure",
                 "communications_failure",
@@ -162,38 +223,44 @@ RESPONSE_SCHEMA = {
                 "medical_disruption",
                 "other",
             ],
-            "description": (
-                "The incident category most directly supported "
-                "by the field report."
-            ),
         },
+
         "evidence_description": {
             "type": "STRING",
-            "description": (
-                "The observation or claim actually supplied "
-                "by the reporter."
-            ),
         },
+
         "uncertainty": {
             "type": "STRING",
-            "description": (
-                "Anything that remains uncertain, unconfirmed, "
-                "or unknown from the report."
-            ),
+        },
+
+        "simulation_eligibility": {
+            "type": "STRING",
+
+            "enum": [
+                "confirmed_failure",
+                "evidence_only",
+            ],
+        },
+
+        "simulation_reason": {
+            "type": "STRING",
         },
     },
+
     "required": [
         "summary",
         "asset_id",
         "incident_type",
         "evidence_description",
         "uncertainty",
+        "simulation_eligibility",
+        "simulation_reason",
     ],
 }
 
 
 # ============================================================
-# LIVETRUTH
+# INTERPRET FIELD REPORT
 # ============================================================
 
 
@@ -201,8 +268,9 @@ def interpret_field_report(
     report: FieldReport,
 ) -> InterpretedReport:
 
-    # API key 2 from Google Agent Platform
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv(
+        "GOOGLE_API_KEY"
+    )
 
     if not api_key:
         raise HTTPException(
@@ -214,25 +282,30 @@ def interpret_field_report(
         )
 
     try:
-        # IMPORTANT:
-        # vertexai=True here tells google-genai to use the
-        # Google Cloud / Agent Platform backend for this API key.
-        #
-        # We are NOT switching the project to Vertex AI Studio.
         client = genai.Client(
             vertexai=True,
             api_key=api_key,
         )
 
-        response = client.models.generate_content(
-            model="gemini-3.5-flash",
-            contents=report.text,
-            config={
-                "system_instruction": SYSTEM_INSTRUCTION,
-                "temperature": 0,
-                "response_mime_type": "application/json",
-                "response_schema": RESPONSE_SCHEMA,
-            },
+        response = (
+            client.models.generate_content(
+                model="gemini-3.5-flash",
+
+                contents=report.text,
+
+                config={
+                    "system_instruction":
+                        SYSTEM_INSTRUCTION,
+
+                    "temperature": 0,
+
+                    "response_mime_type":
+                        "application/json",
+
+                    "response_schema":
+                        RESPONSE_SCHEMA,
+                },
+            )
         )
 
         if not response.text:
@@ -240,14 +313,19 @@ def interpret_field_report(
                 "Agent Platform returned an empty response."
             )
 
-        raw_result = json.loads(response.text)
+        raw_result = json.loads(
+            response.text
+        )
 
-        extraction = ExtractedReport.model_validate(
-            raw_result
+        extraction = (
+            ExtractedReport.model_validate(
+                raw_result
+            )
         )
 
         return InterpretedReport(
             original_text=report.text,
+
             extraction=extraction,
         )
 
