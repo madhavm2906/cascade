@@ -333,117 +333,28 @@ export default function VoiceRecorder({
   }
 
   return (
-    <div
-      style={{
-        marginBottom: 20,
-        padding: 14,
-        border: "1px solid rgba(129,190,174,0.28)",
-        background: "rgba(83,143,127,0.09)",
-        color: "#dcece8",
-      }}
-    >
-      <div
-        style={{
-          marginBottom: 10,
-          fontSize: 10,
-          letterSpacing: "0.1em",
-          color: "#9bbdb4",
-        }}
-      >
-        VOICE FIELD REPORT
+    <section className="voice-recorder" aria-label="Record a field report">
+      <div className="voice-recorder__heading">
+        <span>VOICE FIELD REPORT</span>
+        <Mic size={16} aria-hidden="true" />
       </div>
-
       {status === "idle" && (
-        <button
-          type="button"
-          onClick={startRecording}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 9,
-            width: "100%",
-            minHeight: 42,
-            border: "1px solid rgba(132,196,178,0.5)",
-            background: "rgba(88,155,135,0.18)",
-            color: "#e3f3ee",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <Mic size={16} />
-          RECORD VOICE REPORT
+        <button type="button" className="voice-recorder__button" onClick={startRecording}>
+          <Mic size={17} aria-hidden="true" /> Record a voice report
         </button>
       )}
-
       {status === "recording" && (
-        <button
-          type="button"
-          onClick={stopRecording}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 9,
-            width: "100%",
-            minHeight: 42,
-            border: "1px solid rgba(235,124,113,0.55)",
-            background: "rgba(165,67,61,0.22)",
-            color: "#ffdcd7",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <Square size={14} />
-          STOP &amp; ANALYZE · {seconds}s
+        <button type="button" className="voice-recorder__button voice-recorder__button--stop" onClick={stopRecording}>
+          <Square size={14} aria-hidden="true" /> Stop and analyze · {seconds}s
         </button>
       )}
-
       {status === "processing" && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            fontSize: 11,
-            color: "#b8d5cc",
-          }}
-        >
-          <LoaderCircle
-            size={16}
-            style={{ animation: "livetruth-spin 0.8s linear infinite" }}
-          />
-          Gemini is analyzing your recording...
+        <div className="voice-recorder__processing" role="status">
+          <LoaderCircle size={17} aria-hidden="true" /> Gemini is analyzing your recording…
         </div>
       )}
-
-      {error && (
-        <p
-          role="alert"
-          style={{
-            margin: "12px 0 0",
-            fontSize: 11,
-            lineHeight: 1.5,
-            color: "#f0a49b",
-          }}
-        >
-          {error}
-        </p>
-      )}
-
-      <p
-        style={{
-          margin: "10px 0 0",
-          fontSize: 10,
-          lineHeight: 1.5,
-          color: "#92a9a2",
-        }}
-      >
-        Maximum 45 seconds. The recording is analyzed,
-        not automatically approved.
-      </p>
-    </div>
+      {error && <p className="voice-recorder__error" role="alert">{error}</p>}
+      <p className="voice-recorder__note">Up to 45 seconds. A report is never approved automatically.</p>
+    </section>
   );
 }

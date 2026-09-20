@@ -1,394 +1,158 @@
-import { motion } from "framer-motion";
-import { ArrowDown, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  AudioLines,
+  ChevronRight,
+  GitBranch,
+  Layers3,
+  Menu,
+  RadioTower,
+  ShieldCheck,
+  Waves,
+  X,
+  Zap,
+} from "lucide-react";
 import "../styles/landing.css";
 
+const steps = [
+  {
+    number: "01",
+    label: "Understand the network",
+    description: "Six connected services. One city. Explore how a failure in one place can reach another.",
+    icon: Layers3,
+  },
+  {
+    number: "02",
+    label: "Explore a different future",
+    description: "Move through a 30 minute scenario and compare the modeled effects of response choices.",
+    icon: GitBranch,
+  },
+  {
+    number: "03",
+    label: "Bring in the field",
+    description: "Speak or type a report. Gemini organizes the evidence for a person to review.",
+    icon: AudioLines,
+  },
+];
+
 export default function LandingPage() {
-  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "CASCADE | See what happens next";
+    return () => { document.title = previousTitle; };
+  }, []);
 
   return (
-    <div className="landing">
-      <header className="nav">
-        <div className="logo">CASCADE</div>
-
-        <div className="nav-right">
-          <span>CRITICAL INFRASTRUCTURE INTELLIGENCE</span>
-
-          <button onClick={() => navigate("/command")}>
-            Open Command Center
-          </button>
-        </div>
+    <div className="cascade-site">
+      <a className="landing-skip" href="#main">Skip to content</a>
+      <header className="landing-nav">
+        <Link className="landing-logo" to="/" aria-label="CASCADE home" onClick={() => setMenuOpen(false)}>
+          <span className="landing-logo-mark" aria-hidden="true"><Waves size={20} strokeWidth={2.2} /></span>
+          <span>CASCADE<span className="landing-logo-dot">.</span></span>
+        </Link>
+        <nav className={`landing-nav-links ${menuOpen ? "is-open" : ""}`} aria-label="Main navigation">
+          <a href="#experience" onClick={() => setMenuOpen(false)}>The experience</a>
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it works</a>
+          <Link to="/command" className="landing-nav-mobile-cta" onClick={() => setMenuOpen(false)}>Open simulation <ArrowUpRight size={16} /></Link>
+        </nav>
+        <Link className="landing-nav-cta" to="/command">Open simulation <ArrowUpRight size={15} /></Link>
+        <button className="landing-nav-toggle" type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+          {menuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
       </header>
 
-      <main>
-        {/* HERO */}
-        <section className="hero">
-          <div className="hero-background">
-            <img
-              src="/images/cascade-hero-city.png"
-              alt=""
-              className="hero-background-image"
-            />
-            <div className="hero-background-overlay" />
-          </div>
-
-          <div className="hero-glow hero-glow-one" />
-          <div className="hero-glow hero-glow-two" />
-
-          <motion.div
-            className="hero-content"
-            initial={{ opacity: 0, y: 45 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <p className="hero-kicker">
-              CRITICAL INFRASTRUCTURE INTELLIGENCE
-            </p>
-
-            <h1>
-              One failure
-              <br />
-              rarely stays
-              <br />
-              <span>one failure.</span>
-            </h1>
-
-            <p className="hero-description">
-              CASCADE models how power, water, communications, transportation,
-              hospitals and emergency services depend on each other, then
-              predicts what may fail next before the damage spreads.
-            </p>
-
-            <div className="hero-actions">
-              <button
-                className="enter-button"
-                onClick={() => navigate("/command")}
-              >
-                Enter Command Center
-                <ArrowRight size={18} />
-              </button>
-
-              <a className="discover" href="#problem">
-                Explore the system
-                <ArrowDown size={17} />
-              </a>
-            </div>
-          </motion.div>
-
-          <motion.div
-            className="hero-network"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.55, duration: 1.1 }}
-          >
-            <div className="network-line line-a" />
-            <div className="network-line line-b" />
-            <div className="network-line line-c" />
-            <div className="network-line line-d" />
-            <div className="network-line line-e" />
-
-            <div className="network-node node-power">
-              <span />
-              POWER
-            </div>
-
-            <div className="network-node node-water">
-              <span />
-              WATER
-            </div>
-
-            <div className="network-node node-comms">
-              <span />
-              COMMUNICATIONS
-            </div>
-
-            <div className="network-node node-hospital">
-              <span />
-              HOSPITAL
-            </div>
-
-            <div className="network-node node-traffic">
-              <span />
-              TRANSPORT
-            </div>
-
-            <div className="network-core">
-              <div className="core-ring ring-one" />
-              <div className="core-ring ring-two" />
-
-              <strong>CASCADE</strong>
-              <small>LIVE MODEL</small>
-            </div>
-          </motion.div>
-
-          <div className="hero-footer">
-            <span>LIVE SYSTEM MODEL</span>
-            <span>01 / 04</span>
-          </div>
-        </section>
-
-        {/* PROBLEM */}
-        <section className="problem-section" id="problem">
-          <div className="problem-visual">
-            <motion.div
-              className="problem-image-frame"
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.9 }}
-            >
-              <img
-                src="/images/cascade-substation.png"
-                alt="Electrical infrastructure during severe weather"
-              />
-
-              <div className="problem-image-overlay" />
-
-              <div className="image-data">
-                <span>GRID NODE</span>
-                <strong>SUBSTATION N4</strong>
-                <small>PRIMARY POWER DISTRIBUTION</small>
-              </div>
-            </motion.div>
-          </div>
-
-          <motion.div
-            className="problem-copy"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.4 }}
-            transition={{ duration: 0.8 }}
-          >
-            <p className="section-label">THE PROBLEM</p>
-
-            <h2>
-              Infrastructure
-              <br />
-              doesn't fail
-              <br />
-              <span>in isolation.</span>
-            </h2>
-
-            <p className="section-description">
-              A damaged power system can affect communications. Communications
-              can affect emergency response. Transportation failures can delay
-              repair crews. Hospitals can suddenly become dependent on backup
-              systems.
-            </p>
-
-            <p className="section-description">
-              The first failure may not be the most dangerous one.
-            </p>
-          </motion.div>
-        </section>
-
-        {/* CASCADE CHAIN */}
-        <section className="cascade-section">
-          <div className="section-intro">
-            <p className="section-label">THE CASCADE</p>
-
-            <h2>
-              One event.
-              <br />
-              Multiple consequences.
-            </h2>
-          </div>
-
-          <div className="cascade-flow">
-            <motion.div
-              className="flow-item"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <span className="flow-number">01</span>
-              <div className="flow-status stable-status" />
-              <h3>Power</h3>
-              <p>Substation failure detected.</p>
-            </motion.div>
-
-            <div className="flow-line">
-              <span />
-            </div>
-
-            <motion.div
-              className="flow-item"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-            >
-              <span className="flow-number">02</span>
-              <div className="flow-status watch-status" />
-              <h3>Communications</h3>
-              <p>Cell towers switch to battery backup.</p>
-            </motion.div>
-
-            <div className="flow-line danger-line">
-              <span />
-            </div>
-
-            <motion.div
-              className="flow-item"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-            >
-              <span className="flow-number">03</span>
-              <div className="flow-status warning-status" />
-              <h3>Transportation</h3>
-              <p>Traffic systems become degraded.</p>
-            </motion.div>
-
-            <div className="flow-line danger-line">
-              <span />
-            </div>
-
-            <motion.div
-              className="flow-item critical-flow"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-            >
-              <span className="flow-number">04</span>
-              <div className="flow-status critical-status" />
-              <h3>Critical Services</h3>
-              <p>Hospital operations become vulnerable.</p>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* REAL WORLD IMPACT */}
-        <section className="impact-section">
-          <div className="impact-background">
-            <img
-              src="/images/cascade-flood-response.png"
-              alt=""
-              className="impact-background-image"
-            />
-            <div className="impact-background-overlay" />
-          </div>
-
-          <motion.div
-            className="impact-copy"
-            initial={{ opacity: 0, y: 45 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.35 }}
-          >
-            <p className="section-label">REAL WORLD IMPACT</p>
-
-            <h2>
-              During a disaster,
-              <br />
-              responders don't have
-              <br />
-              <span>unlimited time.</span>
-            </h2>
-
-            <p>
-              Roads close. Communications become unreliable. Crews are limited.
-              CASCADE turns infrastructure conditions into an evolving model of
-              what is happening now and what may happen next.
-            </p>
-          </motion.div>
-
-          <div className="impact-stat">
-            <span>PREDICT</span>
-            <strong>BEFORE</strong>
-            <small>the next failure happens</small>
-          </div>
-        </section>
-
-        {/* PREDICTION */}
-        <section className="prediction-section">
-          <div className="prediction-left">
-            <p className="section-label">SEE NEXT</p>
-
-            <h2>
-              Predict the
-              <br />
-              <span>chain reaction.</span>
-            </h2>
-
-            <p>
-              CASCADE combines infrastructure dependencies and live signals to
-              estimate downstream risk and time to failure.
-            </p>
-          </div>
-
-          <div className="prediction-visual">
-            <div className="prediction-event">
-              <div className="prediction-dot critical-dot" />
-
-              <div>
-                <span>SUBSTATION N4</span>
-                <strong>FAILURE DETECTED</strong>
-                <small>00:00</small>
+      <main id="main">
+        <section className="landing-hero" aria-labelledby="hero-heading">
+          <div className="landing-hero-photo" role="img" aria-label="Atmospheric illustration of a city at dusk" />
+          <div className="landing-hero-shade" />
+          <div className="landing-hero-inner">
+            <div className="landing-eyebrow"><span className="landing-eyebrow-line" /> A CITY IS A CONNECTED SYSTEM <span className="landing-eyebrow-end">01 / INTRODUCTION</span></div>
+            <div className="landing-hero-copy">
+              <h1 id="hero-heading">One outage.<br /><em>A thousand</em><br />connections.</h1>
+              <p>What happens after the first failure? See how essential services depend on each other, explore the next 30 minutes, and find out how one decision changes the story.</p>
+              <div className="landing-hero-actions">
+                <Link className="landing-button landing-button-primary" to="/command">Enter the simulation <ArrowUpRight size={19} /></Link>
+                <a className="landing-button landing-button-text" href="#experience">Explore the idea <ArrowDownRight size={18} /></a>
               </div>
             </div>
-
-            <div className="prediction-link">
-              <div />
-            </div>
-
-            <div className="prediction-event">
-              <div className="prediction-dot warning-dot" />
-
-              <div>
-                <span>TOWER C7</span>
-                <strong>AT RISK</strong>
-                <small>11 MIN</small>
-              </div>
-            </div>
-
-            <div className="prediction-link amber-link">
-              <div />
-            </div>
-
-            <div className="prediction-event">
-              <div className="prediction-dot watch-dot" />
-
-              <div>
-                <span>HOSPITAL NORTH</span>
-                <strong>BACKUP POWER EXPECTED</strong>
-                <small>19 MIN</small>
-              </div>
+            <div className="landing-hero-footer">
+              <span><span className="landing-pulse" /> INTERACTIVE FICTIONAL CITY</span>
+              <span>BUILT AT VTHACKS 14 <span className="landing-footer-rule" /> SCROLL TO EXPLORE ↓</span>
             </div>
           </div>
         </section>
 
-        {/* FUTUREFORK */}
-        <section className="future-section">
-          <motion.div
-            className="future-content"
-            initial={{ opacity: 0, scale: 0.97 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.8 }}
-          >
-            <p className="section-label">FUTUREFORK</p>
-
-            <h2>
-              Every decision creates
-              <br />
-              <span>a different future.</span>
-            </h2>
-
-            <p>
-              Simulate competing response strategies before committing
-              emergency resources. Compare infrastructure recovered, critical
-              services protected and people affected.
-            </p>
-
-            <button onClick={() => navigate("/command")}>
-              Launch CASCADE
-              <ArrowRight size={19} />
-            </button>
-          </motion.div>
+        <section id="experience" className="landing-statement" aria-label="What CASCADE explores">
+          <div className="landing-statement-kicker">THE BIGGER PICTURE <span>02 / THE IDEA</span></div>
+          <div className="landing-statement-grid">
+            <h2>Nothing fails <em>alone.</em></h2>
+            <div className="landing-statement-copy">
+              <p>When the power goes out, the story doesn’t end at the substation. Communications, water, traffic, healthcare, and emergency services are connected in ways that are easy to miss.</p>
+              <p>CASCADE makes those connections visible. Not as a real world prediction, but as a scenario you can explore, question, and change.</p>
+              <Link className="landing-inline-link" to="/command">See the network <ArrowUpRight size={17} /></Link>
+            </div>
+          </div>
         </section>
+
+        <section className="landing-feature" aria-labelledby="feature-heading">
+          <div className="landing-feature-image" role="img" aria-label="Electric substation in a fictional infrastructure scenario">
+            <div className="landing-feature-image-label"><Zap size={17} /> THE FIRST FAILURE <span>N4 / POWER</span></div>
+          </div>
+          <div className="landing-feature-story">
+            <span className="landing-section-kicker">SEE THE RIPPLE EFFECT / 01</span>
+            <h2 id="feature-heading">An entire city.<br /><em>One starting point.</em></h2>
+            <p>Start with a substation outage and watch how the modeled consequences move through the network. Select any asset to understand what it depends on and when it may be affected.</p>
+            <div className="landing-feature-facts">
+              <span><strong>06</strong> connected services</span>
+              <span><strong>30</strong> simulated minutes</span>
+            </div>
+            <Link className="landing-round-link" to="/command" aria-label="Explore the city network"><ArrowUpRight size={22} /></Link>
+          </div>
+        </section>
+
+        <section id="how-it-works" className="landing-process" aria-labelledby="process-heading">
+          <div className="landing-process-top"><span className="landing-section-kicker">HOW IT WORKS / 03</span><span>THREE WAYS INTO THE STORY</span></div>
+          <div className="landing-process-heading"><h2 id="process-heading">Don’t just watch.<br /><em>Explore what’s next.</em></h2><p>CASCADE combines a deterministic network simulation with AI assisted report interpretation and a human decision point.</p></div>
+          <div className="landing-process-list">
+            {steps.map(({ number, label, description, icon: Icon }) => (
+              <Link to="/command" className="landing-process-row" key={number}>
+                <span className="landing-process-number">{number}</span>
+                <span className="landing-process-icon"><Icon size={23} strokeWidth={1.65} /></span>
+                <span className="landing-process-text"><strong>{label}</strong><span>{description}</span></span>
+                <ChevronRight className="landing-process-arrow" size={22} />
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-voice" aria-labelledby="voice-heading">
+          <div className="landing-voice-visual"><div className="landing-voice-icon"><RadioTower size={34} strokeWidth={1.4} /></div><span>FIELD REPORT / AUDIO + TEXT</span><div className="landing-waveform" aria-hidden="true">{Array.from({ length: 25 }, (_, index) => <i key={index} style={{ height: `${15 + (Math.sin(index * 2.3) + 1) * 23 + (index % 4) * 3}px` }} />)}</div><div className="landing-voice-caption"><span>REVIEW REQUIRED</span><ShieldCheck size={19} /></div></div>
+          <div className="landing-voice-copy"><span className="landing-section-kicker">LIVETRUTH / 04</span><h2 id="voice-heading">A voice from the field.<br /><em>A clearer picture.</em></h2><p>Record or type a report. Gemini transcribes and organizes what was reported, including what is still uncertain. A person decides whether an eligible report becomes part of the fictional scenario.</p><Link className="landing-inline-link" to="/command">Try a field report <ArrowUpRight size={17} /></Link></div>
+        </section>
+
+        <section className="landing-last" aria-labelledby="last-heading"><span>READY TO SEE THE CONNECTIONS?</span><h2 id="last-heading">The next move<br />is <em>yours.</em></h2><Link className="landing-button landing-button-primary" to="/command">Enter CASCADE <ArrowUpRight size={18} /></Link><p>Fictional exercise. Illustrative outcomes. No live infrastructure data or emergency dispatch.</p></section>
       </main>
+      <footer className="landing-footer" aria-label="Project information">
+        <div className="landing-footer-about">
+          <Link className="landing-footer-brand" to="/" aria-label="CASCADE home">CASCADE<span>.</span></Link>
+          <p>See how one failure can affect a connected city, and explore what a different response might change.</p>
+          <small>Fictional simulation for demonstration and learning. No live emergency data.</small>
+        </div>
+        <div className="landing-footer-credit">
+          <span>INDEPENDENT PROJECT / VTHACKS 14 · 2026</span>
+          <strong>Built by Madhav Mangalagiri</strong>
+          <span>Virginia Tech</span>
+          <div className="landing-footer-links">
+            <a href="https://github.com/madhavm2906/cascade" target="_blank" rel="noopener noreferrer" aria-label="CASCADE source code on GitHub (opens in a new tab)">GitHub <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a href="https://devpost.com/software/cascade-rkpsf2" target="_blank" rel="noopener noreferrer" aria-label="CASCADE on Devpost (opens in a new tab)">Devpost <ArrowUpRight size={15} aria-hidden="true" /></a>
+          </div>
+        </div>
+        <a className="landing-footer-top" href="#main">BACK TO TOP ↑</a>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-
 import {
   LngLatBounds,
   Map,
@@ -7,11 +6,8 @@ import {
   setWorkerUrl,
   type GeoJSONSource,
 } from "maplibre-gl";
-
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-
 import "maplibre-gl/dist/maplibre-gl.css";
-
 import {
   createDependencyGeoJSON,
   createNodeGeoJSON,
@@ -25,6 +21,85 @@ type CityMapProps = {
   onNodeSelect: (node: InfrastructureNode | null) => void;
 };
 
+// Only these six local asset IDs are used to construct the icons.
+// The icons are embedded SVG artwork, not platform-dependent emojis.
+const ICON_PATHS: Record<string, string> = {
+  "substation-n4": '<path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z"/>',
+  "hospital-north": '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3Z"/>',
+  "tower-c7": '<path d="M12 19v-7m-3 7h6M12 5v2m-4.24.76a6 6 0 0 0 0 8.48m8.48-8.48a6 6 0 0 1 0 8.48M5 4a11 11 0 0 0 0 16m14-16a11 11 0 0 1 0 16"/>',
+  "pump-w2": '<path d="M12 2C9 6.5 5 11 5 15a7 7 0 0 0 14 0c0-4-4-8.5-7-13Z"/><path d="M8.5 16a3.5 3.5 0 0 0 3.5 3.5"/>',
+  "traffic-t4": '<rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="17" r="1.3"/>',
+  "fire-f2": '<path d="M12 22c4.5 0 7-3 7-7 0-3.2-2-5.8-4-7-.2 2.1-1.2 3.5-2.5 4.1C13 8.9 11 5.8 8.5 3 9 7 5 9.4 5 15c0 4 2.5 7 7 7Z"/><path d="M12 22c-2 0-3-1.4-3-3s1-3 3-4c0 1.6 3 2.4 3 4s-1 3-3 3Z"/>',
+};
+
+function iconSvg(paths: string) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f1f8f5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+}
+
+async function addInfrastructureIcons(map: Map) {
+  const icons = await Promise.all(
+    Object.entries(ICON_PATHS).map(([id, paths]) =>
+      new Promise<{ id: string; image: HTMLImageElement }>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ id, image });
+        image.onerror = () => reject(new Error(`Could not load icon for ${id}`));
+        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(iconSvg(paths))}`;
+      })
+    )
+  );
+
+  if (!map.getSource("infrastructure-nodes")) return;
+  icons.forEach(({ id, image }) => {
+    map.addImage(`cascade-${id}`, image, { pixelRatio: 2 });
+  });
+
+  map.addLayer({
+    id: "node-icons",
+    type: "symbol",
+    source: "infrastructure-nodes",
+    layout: {
+      "icon-image": [
+        "match", ["get", "id"],
+        "substation-n4", "cascade-substation-n4",
+        "hospital-north", "cascade-hospital-north",
+        "tower-c7", "cascade-tower-c7",
+        "pump-w2", "cascade-pump-w2",
+        "traffic-t4", "cascade-traffic-t4",
+        "fire-f2", "cascade-fire-f2",
+        "cascade-substation-n4",
+      ],
+      "icon-size": 1,
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+    },
+  });
+}
+
+function fitVisibleNetwork(map: Map, nodes: InfrastructureNode[]) {
+  const bounds = new LngLatBounds();
+  nodes.forEach((node) => bounds.extend(node.coordinates));
+
+  const rect = map.getContainer().getBoundingClientRect();
+  const fork = document.querySelector(".futurefork-dock");
+  const forkRect = fork?.getBoundingClientRect();
+  const mobile = rect.width <= 900;
+  const top = Math.min(mobile ? 105 : 145, Math.round(rect.height * 0.18));
+  const dockSpace = forkRect ? rect.bottom - forkRect.top + 20 : 0;
+  const bottom = Math.min(
+    Math.max(dockSpace, mobile ? 175 : 96),
+    Math.round(rect.height * 0.52)
+  );
+  const side = mobile
+    ? Math.max(24, Math.round(rect.width * 0.07))
+    : Math.min(315, Math.round(rect.width * 0.19));
+
+  map.fitBounds(bounds, {
+    padding: { top, bottom, left: side, right: side },
+    maxZoom: mobile ? 13.8 : 14.2,
+    duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650,
+  });
+}
+
 export default function CityMap({
   nodes,
   selectedNodeId,
@@ -32,498 +107,232 @@ export default function CityMap({
   onNodeSelect,
 }: CityMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-
   const mapRef = useRef<Map | null>(null);
-
   const nodesRef = useRef(nodes);
   const selectedRef = useRef(selectedNodeId);
   const onSelectRef = useRef(onNodeSelect);
-
-  // Keep event handlers connected to the latest React state.
+  const viewRef = useRef({ futureForkOpen, selectedNodeId });
 
   nodesRef.current = nodes;
   selectedRef.current = selectedNodeId;
   onSelectRef.current = onNodeSelect;
-
-  /*
-    Create the map once.
-
-    Keep the worker setup that fixed our earlier
-    MapLibre rendering problem.
-  */
+  viewRef.current = { futureForkOpen, selectedNodeId };
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) {
-      return;
-    }
-
-    setWorkerUrl(workerUrl);
+    if (!containerRef.current || mapRef.current) return;
+    setWorkerUrl(workerUrl); // Preserve the existing Vite/MapLibre worker fix.
 
     const map = new Map({
       container: containerRef.current,
-
       style: {
         version: 8,
-
         sources: {
           "osm-raster": {
             type: "raster",
-
-            tiles: [
-              "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            ],
-
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
-
             attribution: "© OpenStreetMap contributors",
           },
         },
-
-        layers: [
-          {
-            id: "osm-base",
-            type: "raster",
-            source: "osm-raster",
-
-            paint: {
-              "raster-saturation": -0.75,
-              "raster-contrast": 0.12,
-              "raster-brightness-min": 0.08,
-              "raster-brightness-max": 0.68,
-            },
+        layers: [{
+          id: "osm-base",
+          type: "raster",
+          source: "osm-raster",
+          paint: {
+            "raster-saturation": -0.75,
+            "raster-contrast": 0.12,
+            "raster-brightness-min": 0.08,
+            "raster-brightness-max": 0.68,
           },
-        ],
+        }],
       },
-
       center: [-80.4235, 37.233],
-
       zoom: 13.6,
-
       pitch: 0,
-
       bearing: 0,
     });
-
     mapRef.current = map;
-
-    map.addControl(
-      new NavigationControl(),
-      "bottom-right"
-    );
-
-    map.on("error", (event) => {
-      console.error("CASCADE MAP ERROR:", event.error);
-    });
-
-    /*
-      Create the infrastructure layers after
-      the map style is ready.
-    */
+    map.addControl(new NavigationControl(), "bottom-right");
+    map.on("error", (event) => console.error("CASCADE map error:", event.error));
 
     map.once("style.load", () => {
-      if (mapRef.current !== map) {
-        return;
-      }
-
-      console.log("CASCADE: Map style loaded.");
-
-      // Dependency connections
-
+      if (mapRef.current !== map) return;
       map.addSource("dependencies", {
         type: "geojson",
-
-        data: createDependencyGeoJSON(
-          nodesRef.current
-        ),
+        data: createDependencyGeoJSON(nodesRef.current),
       });
-
       map.addLayer({
         id: "dependency-lines",
-
         type: "line",
-
         source: "dependencies",
-
         paint: {
           "line-color": [
-            "match",
-            ["get", "status"],
-
-            "critical",
-            "#ec665b",
-
-            "warning",
-            "#e7a35c",
-
-            "watch",
-            "#e3c374",
-
-            "#80b8b2",
+            "match", ["get", "status"],
+            "healthy", "#81c8ac",
+            "watch", "#e5c780",
+            "warning", "#eba36f",
+            "critical", "#ef8076",
+            "#81c8ac",
           ],
-
           "line-width": 2.5,
-
-          "line-opacity": 0.85,
+          "line-opacity": 0.82,
         },
       });
-
-      // Infrastructure point data
 
       map.addSource("infrastructure-nodes", {
         type: "geojson",
-
-        data: createNodeGeoJSON(
-          nodesRef.current
-        ),
+        data: createNodeGeoJSON(nodesRef.current),
       });
-
-      // Soft colored halos
-
       map.addLayer({
         id: "node-halo",
-
         type: "circle",
-
         source: "infrastructure-nodes",
-
         paint: {
-          "circle-radius": 23,
-
+          "circle-radius": 27,
           "circle-color": [
-            "match",
-            ["get", "status"],
-
-            "healthy",
-            "#5ec7a8",
-
-            "watch",
-            "#e3c374",
-
-            "warning",
-            "#e7a35c",
-
-            "critical",
-            "#ec665b",
-
-            "#5ec7a8",
+            "match", ["get", "status"],
+            "healthy", "#81c8ac",
+            "watch", "#e5c780",
+            "warning", "#eba36f",
+            "critical", "#ef8076",
+            "#81c8ac",
           ],
-
-          "circle-opacity": 0.24,
-
-          "circle-blur": 0.45,
+          "circle-opacity": 0.18,
+          "circle-blur": 0.65,
         },
       });
-
-      // Main infrastructure points
-
       map.addLayer({
         id: "node-core",
-
         type: "circle",
-
         source: "infrastructure-nodes",
-
         paint: {
-          "circle-radius": 11,
-
-          "circle-color": [
-            "match",
-            ["get", "status"],
-
-            "healthy",
-            "#5ec7a8",
-
-            "watch",
-            "#e3c374",
-
-            "warning",
-            "#e7a35c",
-
-            "critical",
-            "#ec665b",
-
-            "#5ec7a8",
-          ],
-
+          "circle-radius": 18,
+          "circle-color": "#142329",
           "circle-stroke-width": 3,
-
-          "circle-stroke-color": "#ffffff",
+          "circle-stroke-color": [
+            "match", ["get", "status"],
+            "healthy", "#81c8ac",
+            "watch", "#e5c780",
+            "warning", "#eba36f",
+            "critical", "#ef8076",
+            "#81c8ac",
+          ],
+          "circle-opacity": 0.98,
         },
       });
-
-      // Ring around the selected node
-
       map.addLayer({
         id: "selected-node",
-
         type: "circle",
-
         source: "infrastructure-nodes",
-
-        filter: [
-          "==",
-          ["get", "id"],
-          selectedRef.current ?? "",
-        ],
-
+        filter: ["==", ["get", "id"], selectedRef.current ?? ""],
         paint: {
-          "circle-radius": 19,
-
+          "circle-radius": 24,
           "circle-color": "rgba(255,255,255,0)",
-
-          "circle-stroke-width": 2,
-
-          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "#f1f8f5",
         },
       });
 
-      /*
-        Click a node to inspect its details.
-      */
-
-      map.on("click", "node-core", (event) => {
-        const id = event.features?.[0]?.properties?.id;
-
-        if (!id) {
-          return;
-        }
-
-        const node = nodesRef.current.find(
-          (item) => item.id === id
-        );
-
-        if (node) {
-          onSelectRef.current(node);
-        }
+      // A failed icon load leaves the existing status circles usable.
+      void addInfrastructureIcons(map).catch((error) => {
+        console.warn("CASCADE: icon layer unavailable; using status markers.", error);
       });
 
-      /*
-        Clicking the empty map clears the selection.
-      */
-
       map.on("click", (event) => {
-        const features = map.queryRenderedFeatures(
-          event.point,
-          {
-            layers: ["node-core"],
-          }
-        );
-
-        if (features.length === 0) {
+        const features = map.queryRenderedFeatures(event.point, {
+          layers: map.getLayer("node-icons")
+            ? ["node-core", "node-icons"]
+            : ["node-core"],
+        });
+        const id = features[0]?.properties?.id;
+        if (id) {
+          onSelectRef.current(nodesRef.current.find((node) => node.id === id) ?? null);
+        } else {
           onSelectRef.current(null);
         }
       });
-
-      map.on("mouseenter", "node-core", () => {
-        map.getCanvas().style.cursor = "pointer";
+      map.on("mousemove", (event) => {
+        const features = map.queryRenderedFeatures(event.point, {
+          layers: map.getLayer("node-icons")
+            ? ["node-core", "node-icons"]
+            : ["node-core"],
+        });
+        map.getCanvas().style.cursor = features.length ? "pointer" : "";
       });
-
-      map.on("mouseleave", "node-core", () => {
-        map.getCanvas().style.cursor = "";
-      });
-
-      console.log(
-        "CASCADE: Infrastructure initialized.",
-        nodesRef.current.length,
-        "nodes"
-      );
-
       map.resize();
     });
 
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => {
+          map.resize();
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            if (mapRef.current === map && viewRef.current.futureForkOpen) {
+              fitVisibleNetwork(map, nodesRef.current);
+            }
+          }, 160);
+        })
+      : null;
+    observer?.observe(containerRef.current);
+
     return () => {
-      map.remove();
+      observer?.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
       mapRef.current = null;
+      map.remove();
     };
   }, []);
 
-  /*
-    Update the infrastructure data whenever Python
-    returns new simulation results.
-
-    This changes node colors and dependency lines
-    without moving the camera.
-  */
-
   useEffect(() => {
     const map = mapRef.current;
-
-    if (!map) {
-      return;
-    }
-
-    const nodeSource = map.getSource(
-      "infrastructure-nodes"
-    ) as GeoJSONSource | undefined;
-
-    if (nodeSource) {
-      nodeSource.setData(
-        createNodeGeoJSON(nodes)
-      );
-    }
-
-    const dependencySource = map.getSource(
-      "dependencies"
-    ) as GeoJSONSource | undefined;
-
-    if (dependencySource) {
-      dependencySource.setData(
-        createDependencyGeoJSON(nodes)
-      );
-    }
+    if (!map) return;
+    (map.getSource("infrastructure-nodes") as GeoJSONSource | undefined)
+      ?.setData(createNodeGeoJSON(nodes));
+    (map.getSource("dependencies") as GeoJSONSource | undefined)
+      ?.setData(createDependencyGeoJSON(nodes));
   }, [nodes]);
 
-  /*
-    Highlight the selected infrastructure node.
-
-    IMPORTANT:
-    This effect only changes the selection ring.
-    It does not move the map.
-  */
-
   useEffect(() => {
     const map = mapRef.current;
-
-    if (!map || !map.getLayer("selected-node")) {
-      return;
-    }
-
-    map.setFilter("selected-node", [
-      "==",
-      ["get", "id"],
-      selectedNodeId ?? "",
-    ]);
+    if (!map || !map.getLayer("selected-node")) return;
+    map.setFilter("selected-node", ["==", ["get", "id"], selectedNodeId ?? ""]);
   }, [selectedNodeId]);
 
-  /*
-    CAMERA BEHAVIOR
-
-    FutureFork closed:
-      Focus on a selected infrastructure node.
-
-    FutureFork open:
-      Fit all six nodes into the visible map area
-      above the FutureFork panel.
-
-    Timeline changes do not trigger this effect.
-  */
+  // The mobile FutureFork is collapsible. Refit after its height changes,
+  // without changing the simulation time or recreating the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    const dock = document.querySelector(".futurefork-dock");
+    if (!map || !futureForkOpen || !dock || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (mapRef.current === map) fitVisibleNetwork(map, nodesRef.current);
+    });
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [futureForkOpen]);
 
   useEffect(() => {
     const map = mapRef.current;
-
-    if (!map) {
-      return;
-    }
-
-    // FUTUREFORK IS OPEN
-
-    if (futureForkOpen) {
-      const frame = requestAnimationFrame(() => {
-        if (mapRef.current !== map) {
-          return;
-        }
-
-        const bounds = new LngLatBounds();
-
-        nodesRef.current.forEach((node) => {
-          bounds.extend(node.coordinates);
+    if (!map) return;
+    const frame = requestAnimationFrame(() => {
+      if (mapRef.current !== map) return;
+      if (futureForkOpen) {
+        fitVisibleNetwork(map, nodesRef.current);
+        return;
+      }
+      if (!selectedNodeId) return;
+      const selected = nodesRef.current.find((node) => node.id === selectedNodeId);
+      if (selected) {
+        map.easeTo({
+          center: selected.coordinates,
+          zoom: Math.max(map.getZoom(), 14),
+          duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650,
         });
-
-        const mapRect = map
-          .getContainer()
-          .getBoundingClientRect();
-
-        const futureForkPanel =
-          document.querySelector(
-            ".futurefork-dock"
-          );
-
-        const panelRect =
-          futureForkPanel?.getBoundingClientRect();
-
-        /*
-          Measure the actual panel position.
-
-          FutureFork may have a different height
-          depending on browser size, so we should
-          not use a fixed amount of empty space.
-        */
-
-        const coveredBottom = panelRect
-          ? mapRect.bottom - panelRect.top + 24
-          : mapRect.height * 0.4;
-
-        /*
-          Reserve room for:
-          - the top navigation and incident banner
-          - the floating left and right panels
-          - FutureFork at the bottom
-        */
-
-        const topPadding = Math.min(
-          145,
-          Math.round(mapRect.height * 0.17)
-        );
-
-        const bottomPadding = Math.min(
-          Math.max(coveredBottom, 100),
-          Math.round(mapRect.height * 0.58)
-        );
-
-        const sidePadding = Math.min(
-          315,
-          Math.round(mapRect.width * 0.19)
-        );
-
-        map.fitBounds(bounds, {
-          padding: {
-            top: topPadding,
-
-            bottom: bottomPadding,
-
-            left: sidePadding,
-
-            right: sidePadding,
-          },
-
-          maxZoom: 14.2,
-
-          duration: 800,
-        });
-      });
-
-      return () => {
-        cancelAnimationFrame(frame);
-      };
-    }
-
-    // FUTUREFORK IS CLOSED
-
-    if (!selectedNodeId) {
-      return;
-    }
-
-    const selectedNode = nodesRef.current.find(
-      (node) => node.id === selectedNodeId
-    );
-
-    if (!selectedNode) {
-      return;
-    }
-
-    map.easeTo({
-      center: selectedNode.coordinates,
-
-      zoom: Math.max(map.getZoom(), 14),
-
-      duration: 700,
+      }
     });
+    return () => cancelAnimationFrame(frame);
   }, [selectedNodeId, futureForkOpen]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="city-map"
-    />
-  );
+  return <div ref={containerRef} className="city-map" aria-label="Fictional infrastructure network map" />;
 }
