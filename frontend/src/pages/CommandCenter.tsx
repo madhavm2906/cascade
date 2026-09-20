@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import VoiceRecorder from "../components/command/VoiceRecorder";
+import { API_BASE_URL } from "../lib/api";
 
 import {
   Activity,
@@ -276,9 +278,7 @@ export default function CommandCenter() {
 
       try {
         const response =
-          await fetch(
-            "http://127.0.0.1:8000/api/simulate",
-            {
+          await fetch(`${API_BASE_URL}/api/simulate`, {
               method: "POST",
 
               headers: {
@@ -484,9 +484,7 @@ export default function CommandCenter() {
 
     try {
       const response =
-        await fetch(
-          "http://127.0.0.1:8000/api/reports/interpret",
-          {
+        await fetch(`${API_BASE_URL}/api/reports/interpret`, {
             method: "POST",
 
             headers: {
@@ -1522,7 +1520,17 @@ export default function CommandCenter() {
                   treating it as
                   confirmed fact.
                 </p>
+                <VoiceRecorder
+  onResult={(result) => {
+    setInterpretedReport(result);
+    setReportText(result.original_text);
+    setReportError(null);
 
+    if (result.extraction.asset_id !== "unknown") {
+      setSelectedNodeId(result.extraction.asset_id);
+    }
+  }}
+/>
 
                 <label
                   className="livetruth-label"
